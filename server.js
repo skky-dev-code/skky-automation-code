@@ -107,10 +107,18 @@ async function resolveDataSource(env) {
   const db = await notion.databases.retrieve({ database_id: id });
   const ds = db.data_sources?.[0];
   if (!ds) throw new Error(`데이터베이스 ${id} 에 data_source가 없습니다.`);
+
+  // v5에서 schema(properties)는 data source에 있음
+  let properties = db.properties;
+  try {
+    const dsDetail = await notion.dataSources.retrieve({ data_source_id: ds.id });
+    if (dsDetail.properties) properties = dsDetail.properties;
+  } catch {}
+
   _dsCache[env] = {
     id: ds.id, name: ds.name,
     dbTitle: db.title, dbUrl: db.url, dbId: db.id,
-    properties: db.properties,
+    properties,
   };
   return _dsCache[env];
 }
