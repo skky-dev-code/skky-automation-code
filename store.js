@@ -8,8 +8,10 @@ import { fileURLToPath } from "node:url";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
-const REDIS_URL   = process.env.UPSTASH_REDIS_REST_URL || "";
-const REDIS_TOKEN = process.env.UPSTASH_REDIS_REST_TOKEN || "";
+// Vercel Marketplace의 Upstash 연동은 KV_REST_API_* 이름으로 주입됨.
+// 직접 설정한 UPSTASH_REDIS_REST_* 도 함께 지원 (둘 다 동일한 Upstash REST API).
+const REDIS_URL   = process.env.UPSTASH_REDIS_REST_URL   || process.env.KV_REST_API_URL   || "";
+const REDIS_TOKEN = process.env.UPSTASH_REDIS_REST_TOKEN || process.env.KV_REST_API_TOKEN || "";
 const USE_REDIS   = !!(REDIS_URL && REDIS_TOKEN);
 
 export const STORE_DRIVER = USE_REDIS ? "redis" : "file";
