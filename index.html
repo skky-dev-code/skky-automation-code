@@ -1494,17 +1494,44 @@
     return { state: "go", email, reason: "발송 가능" };
   }
 
-  // Persist status per ENV so 회신/발송 표시가 reload 후에도 유지됨
+  // 상태는 서버 공유 저장소(/api/status)가 원본. localStorage는 오프라인 캐시.
   function statusStoreKey() { return `dispatch.status.${ENV}`; }
-  function loadStatuses() {
+  function cacheStatuses() {
+    try { localStorage.setItem(statusStoreKey(), JSON.stringify(LOCAL_STATUS)); } catch {}
+  }
+  function loadStatusesCache() {
     Object.keys(LOCAL_STATUS).forEach(k => delete LOCAL_STATUS[k]);
     try {
       const raw = localStorage.getItem(statusStoreKey());
       if (raw) Object.assign(LOCAL_STATUS, JSON.parse(raw));
     } catch {}
   }
-  function saveStatuses() {
-    try { localStorage.setItem(statusStoreKey(), JSON.stringify(LOCAL_STATUS)); } catch {}
+  // 캐시 즉시 반영 후 서버에서 공유 상태를 받아 덮어씀 (동료와 동일하게)
+  async function loadStatuses() {
+    loadStatusesCache();
+    try {
+      const r = await fetch(`/api/status?env=${ENV}`);
+      if (!r.ok) return;
+      const data = await r.json();
+      if (data && data.statuses) {
+        Object.keys(LOCAL_STATUS).forEach(k => delete LOCAL_STATUS[k]);
+        Object.assign(LOCAL_STATUS, data.statuses);
+        cacheStatuses();
+        renderTable();
+        updateBulk();
+      }
+    } catch {}
+  }
+  // updates: { pageId: status } 델타 — 로컬 캐시 + 서버 공유 저장소에 동시 반영
+  function saveStatuses(updates) {
+    cacheStatuses();
+    if (updates && Object.keys(updates).length) {
+      fetch("/api/status", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ env: ENV, updates }),
+      }).catch(() => {});
+    }
   }
 
   // ===== Env (TEST / PROD) =====
@@ -2128,9 +2155,10 @@
 
       const sent = data.sent || [];
       const failed = data.failed || [];
-      sent.forEach(s => { LOCAL_STATUS[s.id] = phase; });
-      failed.forEach(f => { LOCAL_STATUS[f.id] = "failed"; });
-      saveStatuses();
+      const updates = {};
+      sent.forEach(s => { LOCAL_STATUS[s.id] = phase; updates[s.id] = phase; });
+      failed.forEach(f => { LOCAL_STATUS[f.id] = "failed"; updates[f.id] = "failed"; });
+      saveStatuses(updates);
       state.selected.clear();
       renderTable();
       updateBulk();
@@ -2199,15 +2227,17 @@
       if (!r.ok) throw new Error(data.error || `HTTP ${r.status}`);
       const replies = data.replies || [];
       const newlyReplied = [];
+      const updates = {};
       replies.forEach(rep => {
         // server returns rawUniId (dashless). 매칭은 dashless 비교.
         const target = UNIS.find(u => u.id.replace(/-/g, "") === rep.rawUniId);
         if (target && LOCAL_STATUS[target.id] !== "replied") {
           LOCAL_STATUS[target.id] = "replied";
+          updates[target.id] = "replied";
           newlyReplied.push(target);
         }
       });
-      saveStatuses();
+      saveStatuses(updates);
       renderTable();
       updateBulk();
       if (newlyReplied.length) {

@@ -5,6 +5,7 @@ import { ImapFlow } from "imapflow";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import "dotenv/config";
+import { getStatuses, setStatuses, STORE_DRIVER } from "./store.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -132,6 +133,37 @@ app.get("/api/envs", (_req, res) => {
       databaseId: DBS[e] || null,
     })),
   });
+});
+
+// ===== 공유 상태 저장소 (발송/회신) =====
+const VALID_STATUS = new Set(["draft", "primary", "secondary", "replied", "failed"]);
+
+// GET /api/status?env=test|prod — 모든 사용자 공통 상태 맵
+app.get("/api/status", async (req, res) => {
+  const env = pickEnv(req);
+  try {
+    res.json({ env, driver: STORE_DRIVER, statuses: await getStatuses(env) });
+  } catch (err) {
+    console.error(`status get[${env}]:`, err.message);
+    res.status(500).json({ error: err.message, env });
+  }
+});
+
+// POST /api/status — { env, updates: { pageId: status } } 병합 저장
+app.post("/api/status", async (req, res) => {
+  const env = String(req.body?.env || "test").toLowerCase() === "prod" ? "prod" : "test";
+  const updates = req.body?.updates || {};
+  const clean = {};
+  for (const [id, st] of Object.entries(updates)) {
+    if (VALID_STATUS.has(st)) clean[id] = st;
+  }
+  try {
+    await setStatuses(env, clean);
+    res.json({ env, saved: Object.keys(clean).length, driver: STORE_DRIVER });
+  } catch (err) {
+    console.error(`status set[${env}]:`, err.message);
+    res.status(500).json({ error: err.message, env });
+  }
 });
 
 // GET /api/health?env=test|prod
