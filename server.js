@@ -1,6 +1,10 @@
 import express from "express";
 import { Client, APIErrorCode } from "@notionhq/client";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
 import "dotenv/config";
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 const app = express();
 app.use(express.json());
@@ -176,7 +180,11 @@ app.post("/api/send", async (req, res) => {
   res.json({ ok: true, sent: ids.length, env, phase, at: new Date().toISOString() });
 });
 
-app.use(express.static(new URL(".", import.meta.url).pathname));
+// 명시적 루트 핸들러 — Vercel serverless에서도 index.html 안정적으로 서빙
+app.get("/", (_req, res) => {
+  res.sendFile(path.join(__dirname, "index.html"));
+});
+app.use(express.static(__dirname));
 
 // 로컬에서만 listen — Vercel은 serverless로 export된 app을 직접 호출
 if (!process.env.VERCEL) {
