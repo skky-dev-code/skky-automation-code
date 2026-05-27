@@ -1027,6 +1027,24 @@
     width: 100%; height: 46vh; border: 1px solid var(--rule);
     background: #fff;
   }
+  .modal-foot {
+    display: flex; align-items: center; justify-content: space-between;
+    gap: 12px; padding: 12px 18px; border-top: 1px solid var(--ink);
+  }
+  .modal-foot.hide { display: none; }
+  .foot-info {
+    font-size: 11.5px; color: var(--muted, #777);
+    font-family: var(--mono); letter-spacing: .03em;
+  }
+  .foot-actions { display: flex; gap: 8px; }
+  .modal-foot .btn {
+    border: 1px solid var(--ink); background: var(--paper);
+    padding: 8px 16px; cursor: pointer; font-size: 12.5px;
+  }
+  .modal-foot .btn:hover { background: rgba(0,0,0,.05); }
+  .modal-foot .btn.primary { background: var(--ink); color: var(--paper); }
+  .modal-foot .btn.primary:hover { background: var(--vermilion); border-color: var(--vermilion); }
+  .modal-foot .btn:disabled { opacity: .4; cursor: not-allowed; }
 
   /* responsive */
   @media (max-width: 1080px) {
@@ -1438,6 +1456,13 @@
       </div>
       <div class="preview-note" id="pvNote"></div>
       <iframe class="preview-frame" id="pvFrame" title="메일 본문"></iframe>
+    </div>
+    <div class="modal-foot" id="previewFoot">
+      <span class="foot-info" id="pvFootInfo"></span>
+      <div class="foot-actions">
+        <button class="btn" id="pvCancel">닫기</button>
+        <button class="btn primary" id="pvSend">발송 →</button>
+      </div>
     </div>
   </div>
 </div>
@@ -1946,6 +1971,8 @@
 
   // ===== Email preview modal =====
   let PREVIEW_PHASE = "primary";
+  let PREVIEW_TARGETS = [];      // 발송 모드일 때 실제 발송 대상 (uni 객체)
+  let PREVIEW_SEND_MODE = false; // true = 발송 전 확인 / false = 단순 미리보기
   const previewBack = document.getElementById("previewBack");
 
   // 미리볼 후보: 선택된 대학 우선, 없으면 전체. 유효 이메일 보유 행을 위로 정렬.
@@ -1960,19 +1987,41 @@
     });
   }
 
-  function openPreview(phase) {
+  function hasValidEmail(u) {
+    const e = u.emails && RECIPIENT_COL && u.emails[RECIPIENT_COL];
+    return !!e && EMAIL_RE.test(e);
+  }
+
+  // opts.sendMode + opts.targets → 발송 전 확인 모달, 아니면 단순 미리보기
+  function openPreview(phase, opts = {}) {
     if (!TEMPLATES[phase]) { toast(`${phase === "primary" ? "1차" : "2차"} 템플릿을 먼저 등록하세요`); return; }
     if (!UNIS.length) { toast("먼저 Sync로 대학을 불러오세요"); return; }
     PREVIEW_PHASE = phase;
+    PREVIEW_SEND_MODE = !!opts.sendMode;
     document.getElementById("previewPhase").textContent = phase === "primary" ? "1차" : "2차";
 
+    const cands = PREVIEW_SEND_MODE ? (opts.targets || []) : previewCandidates();
+    PREVIEW_TARGETS = PREVIEW_SEND_MODE ? cands : [];
+
     const sel = document.getElementById("previewUni");
-    const cands = previewCandidates();
     sel.innerHTML = cands.map(u => {
-      const rd = rowReadiness(u);
-      const flag = rd.state === "no" ? " ⚠" : "";
+      const flag = hasValidEmail(u) ? "" : " ⚠";
       return `<option value="${escapeHtml(u.id)}">${escapeHtml((u.code || "—") + " · " + (u.name || "(이름 없음)"))}${flag}</option>`;
     }).join("");
+
+    const foot = document.getElementById("previewFoot");
+    if (PREVIEW_SEND_MODE) {
+      const valid = cands.filter(hasValidEmail).length;
+      const skip = cands.length - valid;
+      foot.classList.remove("hide");
+      document.getElementById("pvFootInfo").textContent =
+        `발송 대상 ${valid}건${skip ? ` · 수신자 누락 ${skip}건 제외` : ""}`;
+      const sendBtn = document.getElementById("pvSend");
+      sendBtn.textContent = `${phase === "primary" ? "1차" : "2차"} 발송 → ${valid}건`;
+      sendBtn.disabled = valid === 0;
+    } else {
+      foot.classList.add("hide");
+    }
 
     previewBack.classList.add("show");
     renderPreview(cands[0]?.id);
@@ -2012,6 +2061,12 @@
   document.getElementById("previewUni").addEventListener("change", (e) => renderPreview(e.target.value));
   function closePreview() { previewBack.classList.remove("show"); }
   document.getElementById("previewClose").addEventListener("click", closePreview);
+  document.getElementById("pvCancel").addEventListener("click", closePreview);
+  document.getElementById("pvSend").addEventListener("click", () => {
+    const targets = PREVIEW_TARGETS, phase = PREVIEW_PHASE;
+    closePreview();
+    executeSend(phase, targets);
+  });
   previewBack.addEventListener("click", (e) => { if (e.target === previewBack) closePreview(); });
   document.addEventListener("keydown", (e) => { if (e.key === "Escape" && previewBack.classList.contains("show")) closePreview(); });
 
@@ -2025,12 +2080,12 @@
   });
 
   // ===== Send =====
-  async function sendPhase(phase, ids) {
+  // 1단계: 발송 대상을 추려 미리보기 모달을 띄움 (실제 발송은 모달 안 "발송" 버튼)
+  function prepareSend(phase, ids) {
     if (!TEMPLATES[phase]) {
       toast(`${phase === "primary" ? "1차" : "2차"} 템플릿이 등록되지 않았습니다`);
       return;
     }
-    const phaseLabel = phase === "primary" ? "1차" : "2차";
     const allTargets = ids.map(id => UNIS.find(x => x.id === id)).filter(Boolean);
     const targets = phase === "secondary"
       ? allTargets.filter(u => statusOf(u) === 'primary')
@@ -2041,6 +2096,13 @@
         : "발송 대상 없음");
       return;
     }
+    openPreview(phase, { sendMode: true, targets });
+  }
+
+  // 2단계: 미리보기에서 확인 후 실제 SMTP 발송
+  async function executeSend(phase, targets) {
+    if (!targets || !targets.length) return;
+    const phaseLabel = phase === "primary" ? "1차" : "2차";
     if (ENV === "prod" && !confirm(`⚠ PRODUCTION 환경에서 ${targets.length}건 ${phaseLabel} 발송합니다. 계속하시겠습니까?`)) {
       return;
     }
@@ -2167,8 +2229,8 @@
     renderTable();
     updateBulk();
   });
-  document.getElementById("bulkSendPrimary").addEventListener("click", () => sendPhase("primary", [...state.selected]));
-  document.getElementById("bulkSendSecondary").addEventListener("click", () => sendPhase("secondary", [...state.selected]));
+  document.getElementById("bulkSendPrimary").addEventListener("click", () => prepareSend("primary", [...state.selected]));
+  document.getElementById("bulkSendSecondary").addEventListener("click", () => prepareSend("secondary", [...state.selected]));
   document.getElementById("inboxBtn").addEventListener("click", syncInbox);
 
   // ===== Sync =====
