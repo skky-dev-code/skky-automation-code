@@ -301,6 +301,49 @@ function uniIdsByRaw(rawIds, env) {
   return rawIds; // we don't keep a server cache; clients send dashless IDs back via /api/sync-inbox response
 }
 
+// 한 Notion 페이지 + 템플릿 → 실제 발송될 메시지(수신자/제목/본문)를 조립.
+// /api/send 와 /api/preview 가 동일하게 사용 → 미리보기 = 실제 발송 결과.
+function buildMessage(page, { template, phase, col }) {
+  const props = page.properties;
+  const vars = {};
+  Object.keys(props).forEach(k => { vars[k] = readProp(props[k]); });
+  vars["_id"] = page.id;
+  vars["_url"] = page.url;
+
+  const raw = vars[col];
+  const to = String((Array.isArray(raw) ? raw[0] : raw) || "").trim();
+  const valid = !!to && /.+@.+\..+/.test(to);
+
+  return {
+    to,
+    valid,
+    from: `"${MAIL.fromName}" <${MAIL.user}>`,
+    subject: renderTemplate(MAIL.subjects[phase], vars),
+    html: renderTemplate(template, vars),
+    name: vars["대학명"],
+  };
+}
+
+// POST /api/preview — 발송하지 않고 렌더링 결과만 반환
+app.post("/api/preview", async (req, res) => {
+  const { id, phase = "primary", template = "", recipientCol } = req.body || {};
+  const col = (recipientCol && String(recipientCol).trim()) || MAIL.recipientCol;
+
+  if (!["primary", "secondary"].includes(phase)) return res.status(400).json({ error: "invalid phase" });
+  if (!id) return res.status(400).json({ error: "id 없음" });
+  if (!template) return res.status(400).json({ error: "템플릿 없음" });
+
+  try {
+    const page = await notion.pages.retrieve({ page_id: id });
+    const msg = buildMessage(page, { template, phase, col });
+    res.json({ phase, recipientCol: col, fromName: MAIL.fromName, account: MAIL.user || null, ...msg });
+  } catch (err) {
+    console.error(`preview [${id}]:`, err.message);
+    const status = err.code === APIErrorCode.ObjectNotFound ? 404 : 500;
+    res.status(status).json({ error: err.message, code: err.code });
+  }
+});
+
 // POST /api/send — 실제 SMTP 발송
 app.post("/api/send", async (req, res) => {
   const { ids = [], phase = "primary", env = "test", template = "", recipientCol } = req.body || {};
@@ -314,38 +357,26 @@ app.post("/api/send", async (req, res) => {
   const sent = [];
   const failed = [];
   const tx = smtp();
-  const subject = MAIL.subjects[phase];
 
   for (const id of ids) {
     try {
       const page = await notion.pages.retrieve({ page_id: id });
-      const props = page.properties;
+      const msg = buildMessage(page, { template, phase, col });
 
-      // 모든 Notion 속성을 템플릿 변수로 노출
-      const vars = {};
-      Object.keys(props).forEach(k => { vars[k] = readProp(props[k]); });
-      vars["_id"] = id;
-      vars["_url"] = page.url;
-
-      const raw = vars[col];
-      const to = String((Array.isArray(raw) ? raw[0] : raw) || "").trim();
-      if (!to || !/.+@.+\..+/.test(to)) {
-        failed.push({ id, name: vars["대학명"], reason: `수신자 이메일 누락 (${col})` });
+      if (!msg.valid) {
+        failed.push({ id, name: msg.name, reason: `수신자 이메일 누락 (${col})` });
         continue;
       }
 
-      const html = renderTemplate(template, vars);
-      const subj = renderTemplate(subject, vars);
       const messageId = makeMessageId(id, phase);
-
       const info = await tx.sendMail({
-        from: `"${MAIL.fromName}" <${MAIL.user}>`,
-        to,
-        subject: subj,
-        html,
+        from: msg.from,
+        to: msg.to,
+        subject: msg.subject,
+        html: msg.html,
         messageId,
       });
-      sent.push({ id, to, messageId: info.messageId || messageId, name: vars["대학명"] });
+      sent.push({ id, to: msg.to, messageId: info.messageId || messageId, name: msg.name });
 
       // Naver SMTP 안전을 위해 살짝 간격
       await new Promise(r => setTimeout(r, 200));

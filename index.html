@@ -956,6 +956,78 @@
   }
   .toast.show { transform: translateX(0); }
 
+  /* ===== Preview modal ===== */
+  .modal-back {
+    position: fixed; inset: 0; z-index: 60;
+    background: rgba(20,16,14,.55);
+    display: none;
+    align-items: center; justify-content: center;
+    padding: 28px;
+  }
+  .modal-back.show { display: flex; }
+  .modal {
+    background: var(--paper);
+    border: 1px solid var(--ink);
+    width: min(820px, 100%);
+    max-height: 90vh;
+    display: flex; flex-direction: column;
+    box-shadow: 0 30px 70px -30px rgba(0,0,0,.6);
+  }
+  .modal-head {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 14px 18px;
+    border-bottom: 1px solid var(--ink);
+  }
+  .modal-title {
+    font-weight: 700; font-size: 14px;
+    display: flex; align-items: center; gap: 10px;
+  }
+  .preview-phase {
+    font-family: var(--mono); font-size: 10px; letter-spacing: .12em;
+    background: var(--ink); color: var(--paper);
+    padding: 3px 8px;
+  }
+  .modal-x {
+    border: 1px solid var(--ink); background: var(--paper);
+    width: 28px; height: 28px; cursor: pointer; font-size: 13px;
+  }
+  .modal-x:hover { background: var(--ink); color: var(--paper); }
+  .modal-bar {
+    display: flex; align-items: center; gap: 10px;
+    padding: 12px 18px; border-bottom: 1px solid var(--rule);
+  }
+  .modal-bar .k {
+    font-family: var(--mono); font-size: 10px; letter-spacing: .1em;
+    text-transform: uppercase; color: var(--muted, #777);
+  }
+  .modal-bar select {
+    flex: 1; border: 1px solid var(--ink); background: var(--paper);
+    padding: 7px 10px; font-size: 12.5px;
+  }
+  .modal-body { padding: 16px 18px; overflow: auto; }
+  .preview-envelope { border: 1px solid var(--rule); margin-bottom: 12px; }
+  .env-row {
+    display: flex; font-size: 12px; line-height: 1.5;
+    border-bottom: 1px solid var(--rule);
+  }
+  .env-row:last-child { border-bottom: 0; }
+  .env-k {
+    flex: 0 0 78px; padding: 7px 10px;
+    font-family: var(--mono); font-size: 10px; letter-spacing: .08em;
+    text-transform: uppercase; color: var(--muted, #777);
+    background: rgba(0,0,0,.03);
+  }
+  .env-v { padding: 7px 10px; word-break: break-all; }
+  .preview-note {
+    font-size: 11.5px; color: var(--vermilion);
+    margin-bottom: 10px; min-height: 0;
+  }
+  .preview-note:empty { display: none; }
+  .preview-frame {
+    width: 100%; height: 46vh; border: 1px solid var(--rule);
+    background: #fff;
+  }
+
   /* responsive */
   @media (max-width: 1080px) {
     .work { grid-template-columns: 1fr; }
@@ -1343,6 +1415,32 @@
 </div>
 
 <div class="toast" id="toast">발송 완료 · 0건</div>
+
+<!-- ===== Email preview modal ===== -->
+<div class="modal-back" id="previewBack">
+  <div class="modal" role="dialog" aria-modal="true" aria-label="메일 미리보기">
+    <div class="modal-head">
+      <div class="modal-title">
+        메일 미리보기
+        <span class="preview-phase" id="previewPhase">1차</span>
+      </div>
+      <button class="modal-x" id="previewClose" title="닫기">✕</button>
+    </div>
+    <div class="modal-bar">
+      <label class="k">미리볼 대학</label>
+      <select id="previewUni"></select>
+    </div>
+    <div class="modal-body" id="previewBody">
+      <div class="preview-envelope">
+        <div class="env-row"><span class="env-k">From</span><span class="env-v" id="pvFrom">—</span></div>
+        <div class="env-row"><span class="env-k">To</span><span class="env-v" id="pvTo">—</span></div>
+        <div class="env-row"><span class="env-k">Subject</span><span class="env-v" id="pvSubject">—</span></div>
+      </div>
+      <div class="preview-note" id="pvNote"></div>
+      <iframe class="preview-frame" id="pvFrame" title="메일 본문"></iframe>
+    </div>
+  </div>
+</div>
 
 <script>
   // ===== Data — fetched live from Notion via /api/universities =====
@@ -1835,13 +1933,7 @@
       const f = e.dataTransfer.files[0];
       if (f) loadTemplateFile(phase, f);
     });
-    view.addEventListener("click", () => {
-      const t = TEMPLATES[phase]; if (!t) return;
-      const w = window.open("", "_blank");
-      const isHtml = /\.html?$/i.test(t.name);
-      w.document.write(isHtml ? t.content : `<pre style="font-family:ui-monospace,monospace;padding:24px;white-space:pre-wrap">${t.content.replace(/[<>&]/g, c => ({'<':'&lt;','>':'&gt;','&':'&amp;'}[c]))}</pre>`);
-      w.document.title = `[${phase === "primary" ? "1차" : "2차"}] ${t.name}`;
-    });
+    view.addEventListener("click", () => openPreview(phase));
     clear.addEventListener("click", () => {
       if (!confirm(`${phase === "primary" ? "1차" : "2차"} 템플릿을 제거하시겠습니까?`)) return;
       TEMPLATES[phase] = null;
@@ -1851,6 +1943,77 @@
       toast(`${phase === "primary" ? "1차" : "2차"} 템플릿 제거됨`);
     });
   });
+
+  // ===== Email preview modal =====
+  let PREVIEW_PHASE = "primary";
+  const previewBack = document.getElementById("previewBack");
+
+  // 미리볼 후보: 선택된 대학 우선, 없으면 전체. 유효 이메일 보유 행을 위로 정렬.
+  function previewCandidates() {
+    const base = state.selected.size
+      ? UNIS.filter(u => state.selected.has(u.id))
+      : UNIS.slice();
+    return base.sort((a, b) => {
+      const av = rowReadiness(a).state === "no" ? 1 : 0;
+      const bv = rowReadiness(b).state === "no" ? 1 : 0;
+      return av - bv;
+    });
+  }
+
+  function openPreview(phase) {
+    if (!TEMPLATES[phase]) { toast(`${phase === "primary" ? "1차" : "2차"} 템플릿을 먼저 등록하세요`); return; }
+    if (!UNIS.length) { toast("먼저 Sync로 대학을 불러오세요"); return; }
+    PREVIEW_PHASE = phase;
+    document.getElementById("previewPhase").textContent = phase === "primary" ? "1차" : "2차";
+
+    const sel = document.getElementById("previewUni");
+    const cands = previewCandidates();
+    sel.innerHTML = cands.map(u => {
+      const rd = rowReadiness(u);
+      const flag = rd.state === "no" ? " ⚠" : "";
+      return `<option value="${escapeHtml(u.id)}">${escapeHtml((u.code || "—") + " · " + (u.name || "(이름 없음)"))}${flag}</option>`;
+    }).join("");
+
+    previewBack.classList.add("show");
+    renderPreview(cands[0]?.id);
+  }
+
+  async function renderPreview(id) {
+    if (!id) return;
+    const note = document.getElementById("pvNote");
+    const frame = document.getElementById("pvFrame");
+    document.getElementById("pvFrom").textContent = "…";
+    document.getElementById("pvTo").textContent = "…";
+    document.getElementById("pvSubject").textContent = "…";
+    note.textContent = "";
+    frame.srcdoc = "";
+    try {
+      const r = await fetch("/api/preview", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          id, phase: PREVIEW_PHASE,
+          template: TEMPLATES[PREVIEW_PHASE].content,
+          recipientCol: RECIPIENT_COL,
+        }),
+      });
+      const data = await r.json();
+      if (!r.ok) throw new Error(data.error || `HTTP ${r.status}`);
+      document.getElementById("pvFrom").textContent = data.from || "—";
+      document.getElementById("pvTo").textContent = data.to || `(수신자 없음 · ${data.recipientCol})`;
+      document.getElementById("pvSubject").textContent = data.subject || "(제목 없음)";
+      if (!data.valid) note.textContent = `⚠ 수신자 이메일이 없거나 형식이 올바르지 않아 이 대학은 발송 시 건너뜁니다 (컬럼: ${data.recipientCol}).`;
+      frame.srcdoc = data.html || "<p style='font-family:sans-serif;color:#999'>(본문 없음)</p>";
+    } catch (err) {
+      note.textContent = `미리보기 실패 · ${err.message}`;
+    }
+  }
+
+  document.getElementById("previewUni").addEventListener("change", (e) => renderPreview(e.target.value));
+  function closePreview() { previewBack.classList.remove("show"); }
+  document.getElementById("previewClose").addEventListener("click", closePreview);
+  previewBack.addEventListener("click", (e) => { if (e.target === previewBack) closePreview(); });
+  document.addEventListener("keydown", (e) => { if (e.key === "Escape" && previewBack.classList.contains("show")) closePreview(); });
 
   // ===== Tab switching =====
   document.querySelectorAll(".tab").forEach(tab => {
