@@ -891,62 +891,6 @@
     .toolbar .center { justify-self: start; flex-wrap: wrap; }
   }
 
-  /* ===== Tabs ===== */
-  .tabbar {
-    position: relative;
-    z-index: 9;
-    max-width: 1320px;
-    margin: 0 auto;
-    padding: 18px 28px 0;
-  }
-  .tabs {
-    display: inline-flex;
-    border-bottom: 1px solid var(--ink);
-    gap: 0;
-  }
-  .tab {
-    background: transparent;
-    border: 1px solid var(--ink);
-    border-bottom: none;
-    font-family: var(--display);
-    font-style: italic;
-    font-weight: 300;
-    font-size: 18px;
-    color: var(--ink-mute);
-    padding: 8px 22px;
-    cursor: pointer;
-    transition: all .15s;
-    display: inline-flex; align-items: center; gap: 10px;
-    border-right-width: 0;
-    margin-bottom: -1px;
-  }
-  .tab:last-child { border-right-width: 1px; }
-  .tab:hover { color: var(--ink); }
-  .tab.on {
-    color: var(--ink);
-    background: var(--paper-2);
-    box-shadow: 0 -1px 0 var(--ink), inset 0 3px 0 var(--vermilion);
-    padding-top: 11px;
-  }
-  .tab-badge {
-    font-family: var(--mono);
-    font-style: normal;
-    font-size: 10px;
-    letter-spacing: .1em;
-    color: var(--ink-mute);
-    padding: 2px 7px;
-    background: var(--paper);
-    border: 1px solid var(--rule);
-  }
-  .tab.on .tab-badge {
-    color: var(--ok);
-    border-color: var(--ok);
-  }
-  .tab-badge.warn { color: var(--vermilion) !important; border-color: var(--vermilion) !important; }
-
-  .tab-panel { display: none; }
-  .tab-panel.on { display: grid; }
-
   .tier-hint {
     font-family: var(--mono);
     font-size: 9.5px;
@@ -954,152 +898,6 @@
     color: var(--ink-mute);
     text-transform: uppercase;
     margin-top: 4px;
-  }
-
-  /* ===== Templates tab ===== */
-  .templates-tab {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 22px;
-    grid-column: 1 / -1;
-  }
-  .tmpl-card {
-    background: var(--paper-2);
-    border: 1px solid var(--ink);
-    box-shadow: var(--shadow-2);
-    display: flex; flex-direction: column;
-    min-height: 420px;
-  }
-  .tmpl-card .card-head {
-    padding: 18px 22px;
-    border-bottom: 1px solid var(--ink);
-    display: flex; align-items: center; justify-content: space-between;
-    background: var(--paper-3);
-  }
-  .tmpl-card .card-head .left {
-    display: flex; align-items: center; gap: 14px;
-  }
-  .tmpl-card .phase-num {
-    width: 46px; height: 46px;
-    display: grid; place-items: center;
-    font-family: var(--display);
-    font-style: italic;
-    font-size: 26px;
-    font-weight: 400;
-    border: 1.5px solid var(--ink);
-    background: var(--paper);
-  }
-  .tmpl-card[data-phase="secondary"] .phase-num {
-    background: var(--ink);
-    color: var(--paper);
-  }
-  .tmpl-card .title {
-    font-family: var(--display);
-    font-style: italic;
-    font-weight: 400;
-    font-size: 26px;
-    letter-spacing: -.01em;
-    color: var(--ink);
-    line-height: 1;
-  }
-  .tmpl-card .sub {
-    font-family: var(--serif-kr);
-    font-size: 12.5px;
-    color: var(--ink-2);
-    margin-top: 4px;
-  }
-  .tmpl-card .status-tag {
-    font-family: var(--mono);
-    font-size: 10px;
-    letter-spacing: .16em;
-    text-transform: uppercase;
-    padding: 5px 10px;
-    border: 1px solid var(--rule);
-    color: var(--ink-mute);
-  }
-  .tmpl-card .status-tag.loaded {
-    color: var(--ok);
-    border-color: var(--ok);
-    background: rgba(47,111,63,.06);
-  }
-  .tmpl-card .card-body {
-    flex: 1;
-    padding: 22px;
-    display: flex; flex-direction: column;
-    gap: 16px;
-  }
-  .drop-zone {
-    border: 2px dashed var(--rule);
-    padding: 36px 24px;
-    text-align: center;
-    background: var(--paper);
-    cursor: pointer;
-    transition: all .15s;
-    display: flex; flex-direction: column; align-items: center; gap: 10px;
-  }
-  .drop-zone:hover { border-color: var(--ink); }
-  .drop-zone.has-file { border-style: solid; border-color: var(--ok); background: rgba(47,111,63,.04); }
-  .drop-zone.drag-over { border-color: var(--vermilion); background: rgba(201,52,28,.04); }
-  .drop-zone .icon {
-    width: 32px; height: 32px;
-    opacity: .55;
-  }
-  .drop-zone.has-file .icon { opacity: 1; color: var(--ok); }
-  .drop-zone .title-d {
-    font-family: var(--serif-kr);
-    font-size: 14px;
-    color: var(--ink);
-  }
-  .drop-zone .hint {
-    font-family: var(--mono);
-    font-size: 10px;
-    letter-spacing: .14em;
-    color: var(--ink-mute);
-    text-transform: uppercase;
-  }
-  .drop-zone .file-info {
-    font-family: var(--mono);
-    font-size: 12px;
-    color: var(--ink);
-    word-break: break-all;
-    padding: 0 20px;
-  }
-  .drop-zone .file-info .sz {
-    color: var(--ink-mute);
-    margin-left: 10px;
-    letter-spacing: .04em;
-  }
-  .drop-zone input { display: none; }
-
-  .tmpl-card .card-actions {
-    padding: 14px 22px;
-    border-top: 1px dashed var(--rule);
-    display: flex; gap: 12px;
-    background: var(--paper-2);
-  }
-  .tmpl-card .card-actions button {
-    flex: 1;
-    font-family: var(--mono);
-    font-size: 11px;
-    letter-spacing: .16em;
-    text-transform: uppercase;
-    padding: 10px 14px;
-    background: transparent;
-    border: 1px solid var(--ink);
-    color: var(--ink);
-    cursor: pointer;
-    transition: all .15s;
-  }
-  .tmpl-card .card-actions button:hover { background: var(--ink); color: var(--paper); }
-  .tmpl-card .card-actions button:disabled { opacity: .35; cursor: not-allowed; }
-  .tmpl-card .card-actions button.danger {
-    border-color: var(--vermilion);
-    color: var(--vermilion);
-  }
-  .tmpl-card .card-actions button.danger:hover { background: var(--vermilion); color: var(--paper); }
-
-  @media (max-width: 900px) {
-    .templates-tab { grid-template-columns: 1fr; }
   }
 
   /* enter animations */
@@ -1145,19 +943,10 @@
   </div>
 </header>
 
-<!-- ===== Tabs ===== -->
-<div class="tabbar">
-  <div class="tabs">
-    <button class="tab on" data-tab="dispatch">발송</button>
-    <button class="tab" data-tab="templates">템플릿 관리<span class="tab-badge" id="tmplBadge">2/2</span></button>
-  </div>
-</div>
-
 <!-- ===== Main ===== -->
 <div class="frame">
 
-  <!-- ===== Dispatch tab ===== -->
-  <section class="work tab-panel on" data-tab-panel="dispatch">
+  <section class="work">
 
     <!-- Sidebar -->
     <aside class="side reveal d1">
@@ -1215,67 +1004,6 @@
     </main>
 
   </section>
-
-  <!-- ===== Templates tab ===== -->
-  <section class="tab-panel templates-tab" data-tab-panel="templates">
-
-    <div class="tmpl-card" data-phase="primary">
-      <div class="card-head">
-        <div class="left">
-          <div class="phase-num">I</div>
-          <div>
-            <div class="title">1차 발송 템플릿</div>
-            <div class="sub">모든 대학에 동일하게 발송되는 기본 메일</div>
-          </div>
-        </div>
-        <span class="status-tag" data-tag="primary">미등록</span>
-      </div>
-      <div class="card-body">
-        <label class="drop-zone" data-zone="primary">
-          <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
-            <path d="M12 3v12m0-12l-5 5m5-5l5 5M4 17v2a2 2 0 002 2h12a2 2 0 002-2v-2"/>
-          </svg>
-          <div class="title-d" data-prompt="primary">파일을 드래그하거나 클릭하여 업로드</div>
-          <div class="hint">.html · .eml · .txt · .md</div>
-          <input type="file" accept=".html,.htm,.eml,.txt,.md" data-input="primary" />
-        </label>
-        <div class="file-info" data-info="primary" style="display:none"></div>
-      </div>
-      <div class="card-actions">
-        <button data-act="view" data-phase="primary" disabled>미리보기</button>
-        <button class="danger" data-act="clear" data-phase="primary" disabled>제거</button>
-      </div>
-    </div>
-
-    <div class="tmpl-card" data-phase="secondary">
-      <div class="card-head">
-        <div class="left">
-          <div class="phase-num">II</div>
-          <div>
-            <div class="title">2차 리마인드 템플릿</div>
-            <div class="sub">1차 발송 후 회신이 없는 대학에만 발송</div>
-          </div>
-        </div>
-        <span class="status-tag" data-tag="secondary">미등록</span>
-      </div>
-      <div class="card-body">
-        <label class="drop-zone" data-zone="secondary">
-          <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
-            <path d="M12 3v12m0-12l-5 5m5-5l5 5M4 17v2a2 2 0 002 2h12a2 2 0 002-2v-2"/>
-          </svg>
-          <div class="title-d" data-prompt="secondary">파일을 드래그하거나 클릭하여 업로드</div>
-          <div class="hint">.html · .eml · .txt · .md</div>
-          <input type="file" accept=".html,.htm,.eml,.txt,.md" data-input="secondary" />
-        </label>
-        <div class="file-info" data-info="secondary" style="display:none"></div>
-      </div>
-      <div class="card-actions">
-        <button data-act="view" data-phase="secondary" disabled>미리보기</button>
-        <button class="danger" data-act="clear" data-phase="secondary" disabled>제거</button>
-      </div>
-    </div>
-
-  </section>
 </div>
 
 <!-- Bulk action bar -->
@@ -1297,7 +1025,6 @@
   // ===== Data — fetched live from Notion via /api/universities =====
   let UNIS = [];                                      // { id, code, name, tiers:[], url }
   const LOCAL_STATUS = {};                            // id → 'draft' | 'primary' | 'secondary' | 'replied' | 'failed'
-  const TEMPLATES = { primary: null, secondary: null };
 
   // ===== Env (TEST / PROD) =====
   const ENV_KEY = "dispatch.env";
@@ -1494,13 +1221,11 @@
     });
 
     const hints = [`${n}개 대학 선택`];
-    if (!TEMPLATES.primary)   hints.push("1차 템플릿 미등록");
-    if (!TEMPLATES.secondary) hints.push("2차 템플릿 미등록");
-    if (eligibleSecondary)    hints.push(`2차 대상 ${eligibleSecondary}건`);
+    if (eligibleSecondary) hints.push(`2차 대상 ${eligibleSecondary}건`);
     document.getElementById("bulkText").textContent = hints.join(" · ");
 
-    if (!TEMPLATES.primary) btn1.setAttribute("disabled","disabled"); else btn1.removeAttribute("disabled");
-    if (!TEMPLATES.secondary || eligibleSecondary === 0) btn2.setAttribute("disabled","disabled"); else btn2.removeAttribute("disabled");
+    btn1.removeAttribute("disabled");
+    if (eligibleSecondary === 0) btn2.setAttribute("disabled","disabled"); else btn2.removeAttribute("disabled");
   }
 
   // ===== Events: table =====
@@ -1567,103 +1292,6 @@
     });
   }
 
-  // ===== Global templates (1차 / 2차, 모든 대학 공통) =====
-  function renderTemplateCards() {
-    ["primary", "secondary"].forEach(phase => {
-      const card = document.querySelector(`.tmpl-card[data-phase="${phase}"]`);
-      if (!card) return;
-      const zone = card.querySelector(`[data-zone="${phase}"]`);
-      const info = card.querySelector(`[data-info="${phase}"]`);
-      const tag = card.querySelector(`[data-tag="${phase}"]`);
-      const prompt = card.querySelector(`[data-prompt="${phase}"]`);
-      const viewBtn = card.querySelector(`button[data-act="view"][data-phase="${phase}"]`);
-      const clearBtn = card.querySelector(`button[data-act="clear"][data-phase="${phase}"]`);
-
-      const t = TEMPLATES[phase];
-      if (t) {
-        zone.classList.add("has-file");
-        prompt.textContent = "업로드 완료";
-        info.style.display = "block";
-        info.innerHTML = `${escapeHtml(t.name)}<span class="sz">${(t.size/1024).toFixed(1)} KB</span>`;
-        tag.textContent = "등록됨";
-        tag.classList.add("loaded");
-        viewBtn.disabled = false;
-        clearBtn.disabled = false;
-      } else {
-        zone.classList.remove("has-file");
-        prompt.textContent = "파일을 드래그하거나 클릭하여 업로드";
-        info.style.display = "none";
-        tag.textContent = "미등록";
-        tag.classList.remove("loaded");
-        viewBtn.disabled = true;
-        clearBtn.disabled = true;
-      }
-    });
-    // tab badge "1/2" etc.
-    const loaded = (TEMPLATES.primary ? 1 : 0) + (TEMPLATES.secondary ? 1 : 0);
-    const badge = document.getElementById("tmplBadge");
-    badge.textContent = `${loaded}/2`;
-    badge.classList.toggle("warn", loaded < 2);
-  }
-
-  function loadTemplateFile(phase, file) {
-    if (!file) return;
-    const reader = new FileReader();
-    reader.onload = () => {
-      TEMPLATES[phase] = { name: file.name, content: reader.result, size: file.size };
-      renderTemplateCards();
-      updateBulk();
-      toast(`${phase === "primary" ? "1차" : "2차"} 템플릿 업로드 · ${file.name}`);
-    };
-    reader.readAsText(file);
-  }
-
-  // wire each card
-  ["primary", "secondary"].forEach(phase => {
-    const card = document.querySelector(`.tmpl-card[data-phase="${phase}"]`);
-    if (!card) return;
-    const zone = card.querySelector(`[data-zone="${phase}"]`);
-    const input = card.querySelector(`input[data-input="${phase}"]`);
-    const viewBtn = card.querySelector(`button[data-act="view"][data-phase="${phase}"]`);
-    const clearBtn = card.querySelector(`button[data-act="clear"][data-phase="${phase}"]`);
-
-    input.addEventListener("change", (e) => {
-      loadTemplateFile(phase, e.target.files[0]);
-      e.target.value = "";
-    });
-    zone.addEventListener("dragover", (e) => { e.preventDefault(); zone.classList.add("drag-over"); });
-    zone.addEventListener("dragleave", () => zone.classList.remove("drag-over"));
-    zone.addEventListener("drop", (e) => {
-      e.preventDefault();
-      zone.classList.remove("drag-over");
-      const f = e.dataTransfer.files[0];
-      if (f) loadTemplateFile(phase, f);
-    });
-    viewBtn.addEventListener("click", () => {
-      const t = TEMPLATES[phase]; if (!t) return;
-      const w = window.open("", "_blank");
-      const isHtml = /\.html?$/i.test(t.name);
-      w.document.write(isHtml ? t.content : `<pre style="font-family:ui-monospace,monospace;padding:24px;white-space:pre-wrap">${t.content.replace(/[<>&]/g, c => ({'<':'&lt;','>':'&gt;','&':'&amp;'}[c]))}</pre>`);
-      w.document.title = `[${phase === "primary" ? "1차" : "2차"}] ${t.name}`;
-    });
-    clearBtn.addEventListener("click", () => {
-      if (!confirm(`${phase === "primary" ? "1차" : "2차"} 템플릿을 제거하시겠습니까?`)) return;
-      TEMPLATES[phase] = null;
-      renderTemplateCards();
-      updateBulk();
-      toast(`${phase === "primary" ? "1차" : "2차"} 템플릿 제거됨`);
-    });
-  });
-
-  // ===== Tab switching =====
-  document.querySelectorAll(".tab").forEach(tab => {
-    tab.addEventListener("click", () => {
-      const target = tab.dataset.tab;
-      document.querySelectorAll(".tab").forEach(t => t.classList.toggle("on", t === tab));
-      document.querySelectorAll(".tab-panel").forEach(p => p.classList.toggle("on", p.dataset.tabPanel === target));
-    });
-  });
-
   // ===== ENV switching =====
   async function loadEnvConfig() {
     try {
@@ -1714,10 +1342,6 @@
 
   // ===== Send =====
   async function sendPhase(phase, ids) {
-    if (!TEMPLATES[phase]) {
-      toast(`${phase === "primary" ? "1차" : "2차"} 템플릿이 등록되지 않았습니다`);
-      return;
-    }
     const allTargets = ids.map(id => UNIS.find(x => x.id === id)).filter(Boolean);
     // 2차는 1차 발송 후 회신 미접수만 자동 필터
     const targets = phase === "secondary"
@@ -1774,7 +1398,6 @@
   // ===== Init =====
   applyEnvTheme();
   renderTierFilters();
-  renderTemplateCards();
   renderTable();    // shows loading state
   updateBulk();
   (async () => {
