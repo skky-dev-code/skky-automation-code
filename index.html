@@ -236,17 +236,41 @@
   .toolbar .right {
     display: flex; align-items: center; gap: 12px;
   }
-  .notion-chip {
+  .status-stack, .action-stack {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+  }
+  .conn-chip {
     display: inline-flex; align-items: center; gap: 8px;
     border: 1px solid var(--ink);
-    padding: 6px 11px;
+    padding: 5px 10px;
     background: var(--paper-2);
     font-family: var(--mono);
-    font-size: 11px;
+    font-size: 10.5px;
     color: var(--ink-2);
     box-shadow: var(--shadow-1);
+    line-height: 1.2;
+    min-width: 220px;
   }
-  .notion-chip svg { width: 12px; height: 12px; }
+  .conn-chip svg { width: 12px; height: 12px; flex: 0 0 auto; }
+  .conn-chip .chip-label { font-weight: 600; letter-spacing: .12em; color: var(--ink); }
+  .conn-chip > span:last-child {
+    flex: 1;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    color: var(--ink-mute);
+  }
+  .conn-chip.ok > span:last-child { color: var(--ink); }
+  .conn-chip.err {
+    border-color: var(--vermilion);
+    color: var(--vermilion-2);
+    background: rgba(201,52,28,.06);
+  }
+  .conn-chip.err > span:last-child { color: var(--vermilion-2); }
+  .conn-chip.err .pulse { background: var(--vermilion); animation: none; }
+  .pulse-warn { background: var(--warn) !important; }
   .pulse {
     position: relative;
     width: 8px; height: 8px; border-radius: 50%;
@@ -792,12 +816,7 @@
   }
   @keyframes spin { to { transform: rotate(360deg); } }
 
-  .notion-chip.err {
-    border-color: var(--vermilion);
-    color: var(--vermilion-2);
-    background: rgba(201,52,28,.06);
-  }
-  .notion-chip.err .pulse { background: var(--vermilion); animation: none; }
+  /* (legacy .notion-chip selectors replaced by .conn-chip) */
 
   /* ===== Bulk action bar ===== */
   .bulkbar {
@@ -1109,13 +1128,24 @@
     </div>
   </div>
   <div class="right">
-    <div class="notion-chip" title="Notion 연결 상태">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><rect x="3" y="3" width="18" height="18"/><path d="M7 7l10 10M7 17V7l10 10V7"/></svg>
-      <span>NOTION</span>
-      <span class="pulse"></span>
-      <span id="notionLabel">connecting…</span>
+    <div class="status-stack">
+      <div class="conn-chip" id="notionChip" title="Notion 연결 상태">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><rect x="3" y="3" width="18" height="18"/><path d="M7 7l10 10M7 17V7l10 10V7"/></svg>
+        <span class="chip-label">NOTION</span>
+        <span class="pulse"></span>
+        <span id="notionLabel">connecting…</span>
+      </div>
+      <div class="conn-chip" id="mailChip" title="Naver 메일 연결 상태">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><rect x="3" y="5" width="18" height="14" rx="1.5"/><path d="M3 7l9 7 9-7"/></svg>
+        <span class="chip-label">MAIL</span>
+        <span class="pulse pulse-warn"></span>
+        <span id="mailLabel">확인 중…</span>
+      </div>
     </div>
-    <button class="sync-btn" id="syncBtn">↻ Sync</button>
+    <div class="action-stack">
+      <button class="sync-btn" id="syncBtn" title="Notion에서 대학 목록 새로고침">↻ Notion</button>
+      <button class="sync-btn" id="inboxBtn" title="네이버 메일함에서 회신 감지">↻ 회신</button>
+    </div>
   </div>
 </header>
 
@@ -1253,6 +1283,19 @@
   let UNIS = [];                                      // { id, code, name, tiers:[], url }
   const LOCAL_STATUS = {};                            // id → 'draft' | 'primary' | 'secondary' | 'replied' | 'failed'
   const TEMPLATES = { primary: null, secondary: null }; // 전역 — 모든 대학 공통
+
+  // Persist status per ENV so 회신/발송 표시가 reload 후에도 유지됨
+  function statusStoreKey() { return `dispatch.status.${ENV}`; }
+  function loadStatuses() {
+    Object.keys(LOCAL_STATUS).forEach(k => delete LOCAL_STATUS[k]);
+    try {
+      const raw = localStorage.getItem(statusStoreKey());
+      if (raw) Object.assign(LOCAL_STATUS, JSON.parse(raw));
+    } catch {}
+  }
+  function saveStatuses() {
+    try { localStorage.setItem(statusStoreKey(), JSON.stringify(LOCAL_STATUS)); } catch {}
+  }
 
   // ===== Env (TEST / PROD) =====
   const ENV_KEY = "dispatch.env";
@@ -1423,13 +1466,63 @@
   }
 
   function setNotionStatus(s) {
-    const chip = document.querySelector(".notion-chip");
+    const chip = document.getElementById("notionChip");
     chip.classList.toggle("err", s === "err");
+    chip.classList.toggle("ok", s === "ok");
     const dot = chip.querySelector(".pulse");
     const label = document.getElementById("notionLabel");
     if (s === "ok") { dot.style.background = "var(--ok)"; label.textContent = "connected"; }
     else if (s === "loading") { dot.style.background = "var(--warn)"; label.textContent = "syncing…"; }
     else if (s === "err") { dot.style.background = "var(--vermilion)"; label.textContent = "disconnected"; }
+  }
+
+  // ===== Naver Mail 상태 =====
+  async function fetchMailStatus() {
+    const chip = document.getElementById("mailChip");
+    const label = document.getElementById("mailLabel");
+    const dot = chip.querySelector(".pulse");
+    label.textContent = "확인 중…";
+    chip.classList.remove("err", "ok");
+    dot.style.background = "var(--warn)";
+    try {
+      const r = await fetch("/api/mail-status");
+      const data = await r.json();
+      const smtpOk = data.smtp?.ok;
+      const imapOk = data.imap?.ok;
+      const account = data.account || "(미설정)";
+      chip.title = [
+        `계정: ${account}`,
+        `발신 이름: ${data.fromName || "-"}`,
+        `수신 컬럼: ${data.recipientCol || "-"}`,
+        `SMTP: ${smtpOk ? "✓ 발송 가능" : "✗ " + (data.smtp?.error || "fail")}`,
+        `IMAP: ${imapOk ? "✓ 회신 감지 가능" : "✗ " + (data.imap?.error || "fail")}`,
+      ].join("\n");
+
+      if (!data.configured) {
+        chip.classList.add("err");
+        dot.style.background = "var(--vermilion)";
+        label.textContent = "credentials 미설정";
+        return;
+      }
+      if (smtpOk && imapOk) {
+        chip.classList.add("ok");
+        dot.style.background = "var(--ok)";
+        label.textContent = account;
+      } else if (smtpOk || imapOk) {
+        chip.classList.add("err");
+        dot.style.background = "var(--warn)";
+        const fail = !smtpOk ? "SMTP ✗" : "IMAP ✗";
+        label.textContent = `${account} · ${fail}`;
+      } else {
+        chip.classList.add("err");
+        dot.style.background = "var(--vermilion)";
+        label.textContent = `${account} · 인증 실패`;
+      }
+    } catch (err) {
+      chip.classList.add("err");
+      dot.style.background = "var(--vermilion)";
+      label.textContent = "서버 응답 없음";
+    }
   }
 
   // ===== Bulk =====
@@ -1555,10 +1648,9 @@
     ENV = newEnv;
     localStorage.setItem(ENV_KEY, ENV);
     applyEnvTheme();
-    // 환경 전환 시 선택/상태 초기화
     state.selected.clear();
     UNIS = [];
-    Object.keys(LOCAL_STATUS).forEach(k => delete LOCAL_STATUS[k]);
+    loadStatuses(); // 환경별로 다른 status 스토어 사용
     renderTable();
     renderTierFilters();
     updateBulk();
@@ -1674,8 +1766,8 @@
       toast(`${phase === "primary" ? "1차" : "2차"} 템플릿이 등록되지 않았습니다`);
       return;
     }
+    const phaseLabel = phase === "primary" ? "1차" : "2차";
     const allTargets = ids.map(id => UNIS.find(x => x.id === id)).filter(Boolean);
-    // 2차는 1차 발송 후 회신 미접수만 자동 필터
     const targets = phase === "secondary"
       ? allTargets.filter(u => statusOf(u) === 'primary')
       : allTargets;
@@ -1685,20 +1777,84 @@
         : "발송 대상 없음");
       return;
     }
+    if (ENV === "prod" && !confirm(`⚠ PRODUCTION 환경에서 ${targets.length}건 ${phaseLabel} 발송합니다. 계속하시겠습니까?`)) {
+      return;
+    }
+
+    const btn1 = document.getElementById("bulkSendPrimary");
+    const btn2 = document.getElementById("bulkSendSecondary");
+    btn1.disabled = btn2.disabled = true;
+    toast(`${phaseLabel} 발송 중 · ${targets.length}건 (네이버 SMTP)`);
+
     try {
       const r = await fetch("/api/send", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ phase, env: ENV, ids: targets.map(u => u.id) })
+        body: JSON.stringify({
+          phase, env: ENV,
+          ids: targets.map(u => u.id),
+          template: TEMPLATES[phase].content,
+        })
       });
-      if (!r.ok) throw new Error(`HTTP ${r.status}`);
-      targets.forEach(u => { LOCAL_STATUS[u.id] = phase; });
+      const data = await r.json();
+      if (!r.ok) throw new Error(data.error || `HTTP ${r.status}`);
+
+      const sent = data.sent || [];
+      const failed = data.failed || [];
+      sent.forEach(s => { LOCAL_STATUS[s.id] = phase; });
+      failed.forEach(f => { LOCAL_STATUS[f.id] = "failed"; });
+      saveStatuses();
       state.selected.clear();
       renderTable();
       updateBulk();
-      toast(`${phase === "primary" ? "1차" : "2차"} 발송 완료 · ${targets.length}건`);
+      const msg = failed.length
+        ? `${phaseLabel} 발송 · 성공 ${sent.length} / 실패 ${failed.length}`
+        : `${phaseLabel} 발송 완료 · ${sent.length}건`;
+      toast(msg);
+      if (failed.length) {
+        console.warn("발송 실패 목록:", failed);
+      }
     } catch (err) {
       toast(`발송 실패 · ${err.message}`);
+    } finally {
+      updateBulk();
+    }
+  }
+
+  // ===== Inbox sync (회신 자동 감지) =====
+  async function syncInbox() {
+    const btn = document.getElementById("inboxBtn");
+    btn.textContent = "↻ 회신 확인중…";
+    btn.disabled = true;
+    try {
+      const r = await fetch("/api/sync-inbox?days=30");
+      const data = await r.json();
+      if (!r.ok) throw new Error(data.error || `HTTP ${r.status}`);
+      const replies = data.replies || [];
+      const newlyReplied = [];
+      replies.forEach(rep => {
+        // server returns rawUniId (dashless). 매칭은 dashless 비교.
+        const target = UNIS.find(u => u.id.replace(/-/g, "") === rep.rawUniId);
+        if (target && LOCAL_STATUS[target.id] !== "replied") {
+          LOCAL_STATUS[target.id] = "replied";
+          newlyReplied.push(target);
+        }
+      });
+      saveStatuses();
+      renderTable();
+      updateBulk();
+      if (newlyReplied.length) {
+        toast(`회신 ${newlyReplied.length}건 감지 · 자동 처리됨`);
+      } else if (replies.length) {
+        toast(`회신 ${replies.length}건 확인 (이미 처리됨)`);
+      } else {
+        toast("새 회신 없음");
+      }
+    } catch (err) {
+      toast(`회신 동기화 실패 · ${err.message}`);
+    } finally {
+      btn.textContent = "↻ 회신";
+      btn.disabled = false;
     }
   }
   document.getElementById("bulkClear").addEventListener("click", () => {
@@ -1708,14 +1864,15 @@
   });
   document.getElementById("bulkSendPrimary").addEventListener("click", () => sendPhase("primary", [...state.selected]));
   document.getElementById("bulkSendSecondary").addEventListener("click", () => sendPhase("secondary", [...state.selected]));
+  document.getElementById("inboxBtn").addEventListener("click", syncInbox);
 
   // ===== Sync =====
   document.getElementById("syncBtn").addEventListener("click", async (e) => {
     const btn = e.currentTarget;
     btn.textContent = "↻ Syncing…";
     btn.disabled = true;
-    await Promise.all([fetchDbInfo(), fetchUniversities()]);
-    btn.textContent = "↻ Sync";
+    await Promise.all([fetchDbInfo(), fetchUniversities(), fetchMailStatus()]);
+    btn.textContent = "↻ Notion";
     btn.disabled = false;
   });
 
@@ -1729,6 +1886,7 @@
 
   // ===== Init =====
   applyEnvTheme();
+  loadStatuses();
   renderTierFilters();
   renderTemplateCards();
   renderTable();    // shows loading state
@@ -1737,6 +1895,7 @@
     await loadEnvConfig();
     fetchDbInfo();
     fetchUniversities();
+    fetchMailStatus();
   })();
 </script>
 </body>
