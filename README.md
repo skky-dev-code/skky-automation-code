@@ -40,3 +40,18 @@ npm start
 - `GET /api/health?env=test|prod` — 연결/스키마 확인
 - `GET /api/universities?env=test|prod` — 대학 목록
 - `POST /api/send` — 발송 (현재 시뮬레이션)
+
+## Vercel 배포
+
+1. https://vercel.com 에서 **Add New → Project** → 이 GitHub repo 선택
+2. **Framework Preset**: Other (자동 인식)
+3. **Environment Variables** 추가:
+   - `NOTION_TOKEN`
+   - `NOTION_DATABASE_TEST`
+   - `NOTION_DATABASE_PROD` (있다면)
+4. **Deploy** 클릭
+
+배포 구조:
+- `api/[[...path]].js` — Express 앱을 catch-all serverless 함수로 감쌈
+- `index.html` — Vercel이 정적 파일로 자동 서빙
+- `vercel.json` — `includeFiles`로 함수 번들에 정적 파일 포함

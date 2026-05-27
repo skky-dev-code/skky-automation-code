@@ -178,11 +178,16 @@ app.post("/api/send", async (req, res) => {
 
 app.use(express.static(new URL(".", import.meta.url).pathname));
 
-const PORT = Number(process.env.PORT) || 3000;
-app.listen(PORT, () => {
-  console.log(`\n  대학 발송 콘솔  →  http://localhost:${PORT}\n`);
-  console.log(`  · TEST DB       : ${DBS.test ? DBS.test.slice(0,8) + "…" : "(not set)"}`);
-  console.log(`  · PROD DB       : ${DBS.prod ? DBS.prod.slice(0,8) + "…" : "(not set)"}`);
-  console.log(`  · Property map  : ${PROP.code} / ${PROP.name} / ${PROP.tier}`);
-  console.log(`  · Health check  : http://localhost:${PORT}/api/health\n`);
-});
+// 로컬에서만 listen — Vercel은 serverless로 export된 app을 직접 호출
+if (!process.env.VERCEL) {
+  const PORT = Number(process.env.PORT) || 3000;
+  app.listen(PORT, () => {
+    console.log(`\n  대학 발송 콘솔  →  http://localhost:${PORT}\n`);
+    console.log(`  · TEST DB       : ${DBS.test ? DBS.test.slice(0,8) + "…" : "(not set)"}`);
+    console.log(`  · PROD DB       : ${DBS.prod ? DBS.prod.slice(0,8) + "…" : "(not set)"}`);
+    console.log(`  · Property map  : ${PROP.code} / ${PROP.name} / ${PROP.tier}`);
+    console.log(`  · Health check  : http://localhost:${PORT}/api/health\n`);
+  });
+}
+
+export default app;
