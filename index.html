@@ -778,6 +778,37 @@
     letter-spacing: .04em;
   }
 
+  .email-cell {
+    font-family: var(--mono);
+    font-size: 11.5px;
+    color: var(--ink);
+    word-break: break-all;
+    line-height: 1.4;
+  }
+  .email-cell.missing {
+    color: var(--vermilion);
+    font-style: italic;
+  }
+
+  .recipient-select {
+    width: 100%;
+    border: 1px solid var(--ink);
+    background: var(--paper);
+    padding: 7px 10px;
+    font-family: var(--mono);
+    font-size: 12px;
+    color: var(--ink);
+    cursor: pointer;
+    outline: none;
+    appearance: none;
+    background-image: linear-gradient(45deg, transparent 50%, var(--ink) 50%), linear-gradient(135deg, var(--ink) 50%, transparent 50%);
+    background-position: calc(100% - 14px) center, calc(100% - 9px) center;
+    background-size: 5px 5px, 5px 5px;
+    background-repeat: no-repeat;
+    padding-right: 28px;
+  }
+  .recipient-select:focus { border-color: var(--vermilion); }
+
   .state-msg {
     padding: 60px 24px;
     text-align: center;
@@ -1181,6 +1212,11 @@
           <div class="tier-legend" id="tierLegend"></div>
           <div class="tier-hint">노션 데이터에서 자동 추출</div>
         </div>
+        <div class="row">
+          <label class="k">recipient · 수신자 컬럼</label>
+          <select id="recipientCol" class="recipient-select"></select>
+          <div class="tier-hint" id="recipientHint">노션 이메일 컬럼 자동 감지</div>
+        </div>
       </div>
     </aside>
 
@@ -1206,10 +1242,11 @@
             <tr>
               <th style="width:42px"><div class="cb" id="cbAll" title="전체 선택"></div></th>
               <th style="width:54px">no.</th>
-              <th style="width:140px">대학코드</th>
+              <th style="width:120px">대학코드</th>
               <th>대학명</th>
-              <th style="width:240px">신청등급 · Template</th>
-              <th style="width:140px">Status</th>
+              <th style="width:200px">수신자 이메일</th>
+              <th style="width:200px">신청등급</th>
+              <th style="width:120px">Status</th>
             </tr>
           </thead>
           <tbody id="uniBody"></tbody>
@@ -1280,7 +1317,9 @@
 
 <script>
   // ===== Data — fetched live from Notion via /api/universities =====
-  let UNIS = [];                                      // { id, code, name, tiers:[], url }
+  let UNIS = [];                                      // { id, code, name, tiers:[], emails:{}, url }
+  let EMAIL_COLS = [];                                // 노션에서 감지한 이메일 컬럼들
+  let RECIPIENT_COL = localStorage.getItem("dispatch.recipientCol") || ""; // 선택된 컬럼
   const LOCAL_STATUS = {};                            // id → 'draft' | 'primary' | 'secondary' | 'replied' | 'failed'
   const TEMPLATES = { primary: null, secondary: null }; // 전역 — 모든 대학 공통
 
@@ -1348,11 +1387,11 @@
 
   function renderTable() {
     if (state.loading) {
-      body.innerHTML = `<tr><td colspan="6"><div class="state-msg"><span class="big"><span class="spinner"></span>Notion에서 불러오는 중…</span>대학코드 · 대학명 · 신청등급을 동기화하고 있습니다.</div></td></tr>`;
+      body.innerHTML = `<tr><td colspan="7"><div class="state-msg"><span class="big"><span class="spinner"></span>Notion에서 불러오는 중…</span>대학코드 · 대학명 · 신청등급을 동기화하고 있습니다.</div></td></tr>`;
       return;
     }
     if (state.error) {
-      body.innerHTML = `<tr><td colspan="6"><div class="state-msg err">
+      body.innerHTML = `<tr><td colspan="7"><div class="state-msg err">
         <span class="big">연결 실패</span>
         ${escapeHtml(state.error)}<br/><br/>
         <code>.env</code> 파일에 <code>NOTION_TOKEN</code>, <code>NOTION_DATABASE_ID</code>가 설정되어 있는지,<br/>
@@ -1374,7 +1413,7 @@
     });
 
     if (filtered.length === 0) {
-      body.innerHTML = `<tr><td colspan="6"><div class="state-msg"><span class="big">결과 없음</span>필터를 조정하거나 Sync 버튼으로 다시 불러오세요.</div></td></tr>`;
+      body.innerHTML = `<tr><td colspan="7"><div class="state-msg"><span class="big">결과 없음</span>필터를 조정하거나 Sync 버튼으로 다시 불러오세요.</div></td></tr>`;
       updateCounters();
       return;
     }
@@ -1385,6 +1424,10 @@
       const tiersHtml = tiers.length
         ? tiers.map(t => `<span class="tier-tag" style="background:${tierColor(t)}">${escapeHtml(t)}</span>`).join(" ")
         : `<span class="tier-tag unknown">(등급 없음)</span>`;
+      const email = (u.emails && RECIPIENT_COL && u.emails[RECIPIENT_COL]) || "";
+      const emailHtml = email
+        ? `<span class="email-cell" title="${escapeHtml(email)}">${escapeHtml(email)}</span>`
+        : `<span class="email-cell missing">(누락)</span>`;
       return `
       <tr data-id="${escapeHtml(u.id)}" class="${state.selected.has(u.id) ? 'checked' : ''}">
         <td><div class="cb ${state.selected.has(u.id) ? 'on' : ''}" data-cb="${escapeHtml(u.id)}"></div></td>
@@ -1395,6 +1438,7 @@
             <span class="ko">${escapeHtml(u.name || "(이름 없음)")}</span>
           </div>
         </td>
+        <td>${emailHtml}</td>
         <td><div style="display:flex;flex-wrap:wrap;gap:5px;">${tiersHtml}</div></td>
         <td><span class="status ${s}"><span class="dot"></span>${statusLabel(s)}</span></td>
       </tr>`;
@@ -1452,6 +1496,9 @@
       }
       const data = await r.json();
       UNIS = data.universities || [];
+      EMAIL_COLS = data.emailCols || [];
+      ensureRecipientCol();
+      renderRecipientPicker();
       state.loading = false;
       setNotionStatus("ok");
       renderTable();
@@ -1794,6 +1841,7 @@
           phase, env: ENV,
           ids: targets.map(u => u.id),
           template: TEMPLATES[phase].content,
+          recipientCol: RECIPIENT_COL,
         })
       });
       const data = await r.json();
@@ -1820,6 +1868,46 @@
       updateBulk();
     }
   }
+
+  // ===== Recipient column picker =====
+  function ensureRecipientCol() {
+    if (!EMAIL_COLS.length) return;
+    if (!EMAIL_COLS.includes(RECIPIENT_COL)) {
+      // 우선순위: 담당자 이메일 > 책임자 이메일주소 > 첫번째
+      const preferred = ["담당자 이메일", "책임자 이메일주소", "계약 이메일"]
+        .find(c => EMAIL_COLS.includes(c));
+      RECIPIENT_COL = preferred || EMAIL_COLS[0];
+      localStorage.setItem("dispatch.recipientCol", RECIPIENT_COL);
+    }
+  }
+  function renderRecipientPicker() {
+    const sel = document.getElementById("recipientCol");
+    const hint = document.getElementById("recipientHint");
+    sel.innerHTML = "";
+    if (!EMAIL_COLS.length) {
+      sel.innerHTML = `<option>이메일 컬럼 없음</option>`;
+      sel.disabled = true;
+      hint.textContent = "Notion DB에 이메일 컬럼이 없습니다";
+      return;
+    }
+    sel.disabled = false;
+    EMAIL_COLS.forEach(col => {
+      const filledCount = UNIS.filter(u => u.emails && u.emails[col]).length;
+      const opt = document.createElement("option");
+      opt.value = col;
+      opt.textContent = `${col}  (${filledCount}/${UNIS.length})`;
+      if (col === RECIPIENT_COL) opt.selected = true;
+      sel.appendChild(opt);
+    });
+    const filled = UNIS.filter(u => u.emails && u.emails[RECIPIENT_COL]).length;
+    hint.textContent = `${filled}/${UNIS.length}개 대학에 ${RECIPIENT_COL} 입력됨`;
+  }
+  document.getElementById("recipientCol").addEventListener("change", (e) => {
+    RECIPIENT_COL = e.target.value;
+    localStorage.setItem("dispatch.recipientCol", RECIPIENT_COL);
+    renderRecipientPicker();
+    renderTable();
+  });
 
   // ===== Inbox sync (회신 자동 감지) =====
   async function syncInbox() {

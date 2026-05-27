@@ -160,6 +160,14 @@ app.get("/api/health", async (req, res) => {
   }
 });
 
+// 이메일 컬럼 자동 감지 — type=email 이거나 컬럼명에 "이메일|email|메일" 포함
+function detectEmailCols(properties) {
+  if (!properties) return [];
+  return Object.entries(properties)
+    .filter(([name, def]) => def.type === "email" || /이메일|email|메일/i.test(name))
+    .map(([name]) => name);
+}
+
 // GET /api/universities?env=test|prod
 app.get("/api/universities", async (req, res) => {
   const env = pickEnv(req);
@@ -171,6 +179,7 @@ app.get("/api/universities", async (req, res) => {
   }
   try {
     const ds = await resolveDataSource(env);
+    const emailCols = detectEmailCols(ds.properties);
     const all = [];
     let cursor;
     do {
@@ -185,17 +194,23 @@ app.get("/api/universities", async (req, res) => {
 
     const universities = all.map(page => {
       const p = page.properties;
+      const emails = {};
+      emailCols.forEach(col => {
+        const v = readProp(p[col]);
+        if (v != null && v !== "") emails[col] = String(Array.isArray(v) ? v[0] : v).trim();
+      });
       return {
         id: page.id,
         code: String(readProp(p[PROP.code]) || "").trim(),
         name: String(readProp(p[PROP.name]) || "").trim(),
         tiers: normalizeTiers(readProp(p[PROP.tier])),
+        emails,
         url: page.url,
         last_edited: page.last_edited_time,
       };
     }).filter(u => u.code || u.name);
 
-    res.json({ count: universities.length, universities, mapping: PROP, env });
+    res.json({ count: universities.length, universities, mapping: PROP, env, emailCols });
   } catch (err) {
     console.error(`query[${env}] err:`, err.message);
     const status = err.code === APIErrorCode.ObjectNotFound ? 404 : 500;
@@ -280,7 +295,8 @@ function uniIdsByRaw(rawIds, env) {
 
 // POST /api/send — 실제 SMTP 발송
 app.post("/api/send", async (req, res) => {
-  const { ids = [], phase = "primary", env = "test", template = "" } = req.body || {};
+  const { ids = [], phase = "primary", env = "test", template = "", recipientCol } = req.body || {};
+  const col = (recipientCol && String(recipientCol).trim()) || MAIL.recipientCol;
 
   if (!["primary", "secondary"].includes(phase)) return res.status(400).json({ error: "invalid phase" });
   if (!ids.length) return res.status(400).json({ error: "ids 비어있음" });
@@ -303,9 +319,10 @@ app.post("/api/send", async (req, res) => {
       vars["_id"] = id;
       vars["_url"] = page.url;
 
-      const to = String(vars[MAIL.recipientCol] || "").trim();
+      const raw = vars[col];
+      const to = String((Array.isArray(raw) ? raw[0] : raw) || "").trim();
       if (!to || !/.+@.+\..+/.test(to)) {
-        failed.push({ id, name: vars["대학명"], reason: `수신자 이메일 누락 (${MAIL.recipientCol})` });
+        failed.push({ id, name: vars["대학명"], reason: `수신자 이메일 누락 (${col})` });
         continue;
       }
 
