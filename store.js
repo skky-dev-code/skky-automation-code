@@ -17,6 +17,7 @@ const USE_REDIS   = !!(REDIS_URL && REDIS_TOKEN);
 export const STORE_DRIVER = USE_REDIS ? "redis" : "file";
 
 function keyFor(env) { return `skky:status:${env}`; }
+function tkeyFor(env) { return `skky:templates:${env}`; }
 
 // ===== Redis (Upstash REST) =====
 async function redisCmd(cmd) {
@@ -44,6 +45,17 @@ async function redisSet(env, updates) {
   if (args.length) await redisCmd(["HSET", keyFor(env), ...args]);
 }
 
+async function redisGetTemplates(env) {
+  const flat = await redisCmd(["HGETALL", tkeyFor(env)]) || [];
+  const out = {};
+  for (let i = 0; i < flat.length; i += 2) {
+    try { out[flat[i]] = JSON.parse(flat[i + 1]); } catch {}
+  }
+  return out;
+}
+async function redisSetTemplate(env, phase, tpl) { await redisCmd(["HSET", tkeyFor(env), phase, JSON.stringify(tpl)]); }
+async function redisDelTemplate(env, phase) { await redisCmd(["HDEL", tkeyFor(env), phase]); }
+
 // ===== File (로컬 dev) =====
 const DATA_DIR = process.env.VERCEL ? "/tmp/skky-data" : path.join(__dirname, ".data");
 function fileFor(env) { return path.join(DATA_DIR, `status-${env}.json`); }
@@ -62,6 +74,21 @@ async function fileSet(env, updates) {
   await fs.writeFile(fileFor(env), JSON.stringify({ ...cur, ...updates }), "utf8");
 }
 
+function tfileFor(env) { return path.join(DATA_DIR, `templates-${env}.json`); }
+async function fileGetTemplates(env) {
+  try { return JSON.parse(await fs.readFile(tfileFor(env), "utf8")); } catch { return {}; }
+}
+async function fileWriteTemplates(env, obj) {
+  await fs.mkdir(DATA_DIR, { recursive: true });
+  await fs.writeFile(tfileFor(env), JSON.stringify(obj), "utf8");
+}
+async function fileSetTemplate(env, phase, tpl) {
+  const cur = await fileGetTemplates(env); cur[phase] = tpl; await fileWriteTemplates(env, cur);
+}
+async function fileDelTemplate(env, phase) {
+  const cur = await fileGetTemplates(env); delete cur[phase]; await fileWriteTemplates(env, cur);
+}
+
 // ===== Public API =====
 export async function getStatuses(env) {
   return USE_REDIS ? redisGet(env) : fileGet(env);
@@ -69,4 +96,14 @@ export async function getStatuses(env) {
 export async function setStatuses(env, updates) {
   if (!updates || !Object.keys(updates).length) return;
   return USE_REDIS ? redisSet(env, updates) : fileSet(env, updates);
+}
+
+export async function getTemplates(env) {
+  return USE_REDIS ? redisGetTemplates(env) : fileGetTemplates(env);
+}
+export async function setTemplate(env, phase, tpl) {
+  return USE_REDIS ? redisSetTemplate(env, phase, tpl) : fileSetTemplate(env, phase, tpl);
+}
+export async function delTemplate(env, phase) {
+  return USE_REDIS ? redisDelTemplate(env, phase) : fileDelTemplate(env, phase);
 }

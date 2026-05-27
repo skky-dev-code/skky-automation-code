@@ -5,7 +5,7 @@ import { ImapFlow } from "imapflow";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import "dotenv/config";
-import { getStatuses, setStatuses, STORE_DRIVER } from "./store.js";
+import { getStatuses, setStatuses, getTemplates, setTemplate, delTemplate, STORE_DRIVER } from "./store.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -162,6 +162,50 @@ app.post("/api/status", async (req, res) => {
     res.json({ env, saved: Object.keys(clean).length, driver: STORE_DRIVER });
   } catch (err) {
     console.error(`status set[${env}]:`, err.message);
+    res.status(500).json({ error: err.message, env });
+  }
+});
+
+// ===== 공유 템플릿 저장소 (1차/2차, env별) =====
+const VALID_PHASE = new Set(["primary", "secondary"]);
+const MAX_TEMPLATE_BYTES = 1_000_000; // 1MB
+
+// GET /api/templates?env= — { primary?, secondary? } 각 { name, content, size }
+app.get("/api/templates", async (req, res) => {
+  const env = pickEnv(req);
+  try {
+    res.json({ env, driver: STORE_DRIVER, templates: await getTemplates(env) });
+  } catch (err) {
+    console.error(`templates get[${env}]:`, err.message);
+    res.status(500).json({ error: err.message, env });
+  }
+});
+
+// POST /api/templates — { env, phase, template } (template:null 이면 삭제)
+app.post("/api/templates", async (req, res) => {
+  const env = String(req.body?.env || "test").toLowerCase() === "prod" ? "prod" : "test";
+  const { phase, template } = req.body || {};
+  if (!VALID_PHASE.has(phase)) return res.status(400).json({ error: "invalid phase", env });
+  try {
+    if (template === null) {
+      await delTemplate(env, phase);
+      return res.json({ env, phase, cleared: true, driver: STORE_DRIVER });
+    }
+    if (!template || typeof template.content !== "string") {
+      return res.status(400).json({ error: "template.content 필요", env });
+    }
+    if (Buffer.byteLength(template.content, "utf8") > MAX_TEMPLATE_BYTES) {
+      return res.status(413).json({ error: "템플릿이 너무 큽니다 (최대 1MB)", env });
+    }
+    const tpl = {
+      name: String(template.name || "template").slice(0, 200),
+      content: template.content,
+      size: Number(template.size) || Buffer.byteLength(template.content, "utf8"),
+    };
+    await setTemplate(env, phase, tpl);
+    res.json({ env, phase, saved: true, driver: STORE_DRIVER });
+  } catch (err) {
+    console.error(`templates set[${env}]:`, err.message);
     res.status(500).json({ error: err.message, env });
   }
 });

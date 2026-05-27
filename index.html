@@ -1534,6 +1534,28 @@
     }
   }
 
+  // ===== 공유 템플릿 (env별, 서버 저장소가 원본) =====
+  async function loadTemplates() {
+    try {
+      const r = await fetch(`/api/templates?env=${ENV}`);
+      if (!r.ok) return;
+      const data = await r.json();
+      TEMPLATES.primary   = data.templates?.primary   || null;
+      TEMPLATES.secondary = data.templates?.secondary || null;
+      renderTemplateCards();
+      updateBulk();
+      renderTable();
+    } catch {}
+  }
+  // tpl 객체면 저장, null이면 삭제
+  function saveTemplate(phase, tpl) {
+    fetch("/api/templates", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ env: ENV, phase, template: tpl }),
+    }).catch(() => {});
+  }
+
   // ===== Env (TEST / PROD) =====
   const ENV_KEY = "dispatch.env";
   let ENV = (localStorage.getItem(ENV_KEY) === "prod") ? "prod" : "test";
@@ -1899,7 +1921,10 @@
     applyEnvTheme();
     state.selected.clear();
     UNIS = [];
-    loadStatuses(); // 환경별로 다른 status 스토어 사용
+    TEMPLATES.primary = TEMPLATES.secondary = null; // 환경별 템플릿 재로딩
+    renderTemplateCards();
+    loadStatuses();  // 환경별로 다른 status 스토어 사용
+    loadTemplates(); // 환경별 공유 템플릿
     renderTable();
     renderTierFilters();
     updateBulk();
@@ -1960,6 +1985,7 @@
       renderTemplateCards();
       updateBulk();
       renderTable();   // 템플릿 등록 → 행별 "발송 가능" 갱신
+      saveTemplate(phase, TEMPLATES[phase]);   // 서버 공유 저장소에 반영
       toast(`${phase === "primary" ? "1차" : "2차"} 템플릿 업로드 · ${file.name}`);
     };
     reader.readAsText(file);
@@ -1992,6 +2018,7 @@
       renderTemplateCards();
       updateBulk();
       renderTable();
+      saveTemplate(phase, null);   // 서버 공유 저장소에서도 제거
       toast(`${phase === "primary" ? "1차" : "2차"} 템플릿 제거됨`);
     });
   });
@@ -2284,6 +2311,7 @@
   // ===== Init =====
   applyEnvTheme();
   loadStatuses();
+  loadTemplates();  // 서버 공유 템플릿 로딩
   renderTierFilters();
   renderTemplateCards();
   renderTable();    // shows loading state
