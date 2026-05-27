@@ -784,11 +784,35 @@
     color: var(--ink);
     word-break: break-all;
     line-height: 1.4;
+    display: inline-flex;
+    align-items: baseline;
+    gap: 6px;
   }
   .email-cell.missing {
     color: var(--vermilion);
     font-style: italic;
   }
+  .email-cell.invalid { color: var(--vermilion); }
+  .ready-dot {
+    flex: 0 0 auto;
+    width: 7px; height: 7px;
+    border-radius: 50%;
+    align-self: center;
+    background: var(--warn);
+  }
+  .ready-dot.go    { background: var(--ok); }
+  .ready-dot.wait  { background: var(--warn); }
+  .ready-dot.no    { background: var(--vermilion); }
+  .ready-legend {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    margin-top: 8px;
+    font-size: 10.5px;
+    color: var(--muted, #777);
+    letter-spacing: .02em;
+  }
+  .ready-legend span { display: inline-flex; align-items: center; gap: 5px; }
 
   .recipient-select {
     width: 100%;
@@ -1216,6 +1240,11 @@
           <label class="k">recipient · 수신자 컬럼</label>
           <select id="recipientCol" class="recipient-select"></select>
           <div class="tier-hint" id="recipientHint">노션 이메일 컬럼 자동 감지</div>
+          <div class="ready-legend">
+            <span><span class="ready-dot go"></span>발송 가능</span>
+            <span><span class="ready-dot wait"></span>SMTP·템플릿 대기</span>
+            <span><span class="ready-dot no"></span>주소 없음·오류</span>
+          </div>
         </div>
       </div>
     </aside>
@@ -1322,6 +1351,25 @@
   let RECIPIENT_COL = localStorage.getItem("dispatch.recipientCol") || ""; // 선택된 컬럼
   const LOCAL_STATUS = {};                            // id → 'draft' | 'primary' | 'secondary' | 'replied' | 'failed'
   const TEMPLATES = { primary: null, secondary: null }; // 전역 — 모든 대학 공통
+  let SMTP_OK = false;                                // /api/mail-status SMTP verify 결과
+
+  // 서버(server.js)의 송신 시 검증과 동일한 형식 체크
+  const EMAIL_RE = /.+@.+\..+/;
+
+  // 한 대학이 "지금 발송 가능"한지 — 3개 신호를 결합
+  //  · 주소: 선택된 수신 컬럼에 형식이 유효한 이메일이 있는가
+  //  · SMTP: Naver SMTP 인증이 통과했는가 (전역)
+  //  · 템플릿: 발송에 쓸 템플릿이 1개 이상 등록됐는가 (전역)
+  function rowReadiness(u) {
+    const email = (u.emails && RECIPIENT_COL && u.emails[RECIPIENT_COL]) || "";
+    if (!email) return { state: "no", email, reason: "수신자 이메일 누락" };
+    if (!EMAIL_RE.test(email)) return { state: "no", email, reason: "이메일 형식 오류 — 발송 시 실패" };
+    const blockers = [];
+    if (!SMTP_OK) blockers.push("SMTP 연결 안 됨");
+    if (!TEMPLATES.primary && !TEMPLATES.secondary) blockers.push("템플릿 미등록");
+    if (blockers.length) return { state: "wait", email, reason: blockers.join(" · ") };
+    return { state: "go", email, reason: "발송 가능" };
+  }
 
   // Persist status per ENV so 회신/발송 표시가 reload 후에도 유지됨
   function statusStoreKey() { return `dispatch.status.${ENV}`; }
@@ -1424,10 +1472,10 @@
       const tiersHtml = tiers.length
         ? tiers.map(t => `<span class="tier-tag" style="background:${tierColor(t)}">${escapeHtml(t)}</span>`).join(" ")
         : `<span class="tier-tag unknown">(등급 없음)</span>`;
-      const email = (u.emails && RECIPIENT_COL && u.emails[RECIPIENT_COL]) || "";
-      const emailHtml = email
-        ? `<span class="email-cell" title="${escapeHtml(email)}">${escapeHtml(email)}</span>`
-        : `<span class="email-cell missing">(누락)</span>`;
+      const rd = rowReadiness(u);
+      const emailHtml = rd.email
+        ? `<span class="email-cell ${rd.state === 'no' ? 'invalid' : ''}" title="${escapeHtml(rd.email + ' — ' + rd.reason)}"><span class="ready-dot ${rd.state}"></span>${escapeHtml(rd.email)}</span>`
+        : `<span class="email-cell missing" title="${escapeHtml(rd.reason)}"><span class="ready-dot no"></span>(누락)</span>`;
       return `
       <tr data-id="${escapeHtml(u.id)}" class="${state.selected.has(u.id) ? 'checked' : ''}">
         <td><div class="cb ${state.selected.has(u.id) ? 'on' : ''}" data-cb="${escapeHtml(u.id)}"></div></td>
@@ -1536,6 +1584,8 @@
       const data = await r.json();
       const smtpOk = data.smtp?.ok;
       const imapOk = data.imap?.ok;
+      SMTP_OK = !!smtpOk;
+      renderTable();   // 행별 "발송 가능" 표시 갱신
       const account = data.account || "(미설정)";
       chip.title = [
         `계정: ${account}`,
@@ -1566,6 +1616,8 @@
         label.textContent = `${account} · 인증 실패`;
       }
     } catch (err) {
+      SMTP_OK = false;
+      renderTable();
       chip.classList.add("err");
       dot.style.background = "var(--vermilion)";
       label.textContent = "서버 응답 없음";
@@ -1757,6 +1809,7 @@
       TEMPLATES[phase] = { name: file.name, content: reader.result, size: file.size };
       renderTemplateCards();
       updateBulk();
+      renderTable();   // 템플릿 등록 → 행별 "발송 가능" 갱신
       toast(`${phase === "primary" ? "1차" : "2차"} 템플릿 업로드 · ${file.name}`);
     };
     reader.readAsText(file);
@@ -1794,6 +1847,7 @@
       TEMPLATES[phase] = null;
       renderTemplateCards();
       updateBulk();
+      renderTable();
       toast(`${phase === "primary" ? "1차" : "2차"} 템플릿 제거됨`);
     });
   });
