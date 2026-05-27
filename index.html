@@ -1,0 +1,1787 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>대학 발송 콘솔</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,300;0,9..144,400;0,9..144,500;0,9..144,700&family=Noto+Serif+KR:wght@400;500;700&family=IBM+Plex+Mono:wght@300;400;500;600&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --paper: #f3ecdc;
+    --paper-2: #ece2cc;
+    --paper-3: #e2d6ba;
+    --ink: #16243a;
+    --ink-2: #2a3a55;
+    --ink-mute: #6b7280;
+    --rule: #c7b994;
+    --rule-2: #ddd0ad;
+    --vermilion: #c9341c;
+    --vermilion-2: #a72612;
+    --gold: #b08a2e;
+    --teal: #20524d;
+    --plum: #6c2238;
+    --ok: #2f6f3f;
+    --warn: #b3771e;
+
+    --shadow-1: 0 1px 0 rgba(22,36,58,.06), 0 0 0 1px rgba(22,36,58,.06);
+    --shadow-2: 0 20px 40px -24px rgba(22,36,58,.35), 0 2px 0 rgba(22,36,58,.04);
+
+    --display: "Fraunces", "Noto Serif KR", Georgia, serif;
+    --serif-kr: "Noto Serif KR", "Fraunces", serif;
+    --sans: "Inter", -apple-system, "Segoe UI", "Apple SD Gothic Neo", sans-serif;
+    --mono: "IBM Plex Mono", ui-monospace, monospace;
+  }
+
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; }
+  body {
+    font-family: var(--sans);
+    color: var(--ink);
+    background: var(--paper);
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+    overflow-x: hidden;
+  }
+  body::before {
+    content: "";
+    position: fixed; inset: 0;
+    pointer-events: none;
+    z-index: 1;
+    background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='220' height='220'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' seed='3'/><feColorMatrix values='0 0 0 0 0.09  0 0 0 0 0.14  0 0 0 0 0.22  0 0 0 0.08 0'/></filter><rect width='100%' height='100%' filter='url(%23n)' opacity='0.55'/></svg>");
+    mix-blend-mode: multiply;
+    opacity: .28;
+  }
+
+  ::selection { background: var(--vermilion); color: var(--paper); }
+
+  /* ===== Compact toolbar ===== */
+  .toolbar {
+    position: sticky;
+    top: 0; z-index: 20;
+    background: var(--paper);
+    border-bottom: 1px solid var(--ink);
+    padding: 12px 28px;
+    display: grid;
+    grid-template-columns: auto 1fr auto;
+    gap: 24px;
+    align-items: center;
+  }
+  .toolbar::before {
+    content: ""; position: absolute; inset: 0; z-index: -1;
+    background: var(--paper);
+  }
+  .brand {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+  .mark {
+    width: 30px; height: 30px;
+    border: 1.5px solid var(--ink);
+    display: grid; place-items: center;
+    font-family: var(--display);
+    font-style: italic;
+    font-weight: 500;
+    font-size: 18px;
+    background: var(--paper-2);
+  }
+  .brand .name {
+    font-family: var(--serif-kr);
+    font-weight: 500;
+    font-size: 16px;
+    letter-spacing: -.005em;
+  }
+  .brand .name em {
+    font-style: italic;
+    font-family: var(--display);
+    color: var(--vermilion);
+    font-weight: 400;
+  }
+  .toolbar .center-zone {
+    justify-self: center;
+    display: flex;
+    align-items: stretch;
+    gap: 10px;
+  }
+  .env-switch {
+    display: flex;
+    border: 1px solid var(--ink);
+    background: var(--paper-2);
+    box-shadow: var(--shadow-1);
+    overflow: hidden;
+  }
+  .env-btn {
+    background: transparent;
+    border: none;
+    border-right: 1px solid var(--ink);
+    padding: 0 14px;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    font-family: var(--mono);
+    font-size: 11px;
+    letter-spacing: .18em;
+    color: var(--ink-mute);
+    transition: all .15s;
+  }
+  .env-btn:last-child { border-right: none; }
+  .env-btn:hover { color: var(--ink); background: var(--paper); }
+  .env-btn .env-dot {
+    width: 8px; height: 8px;
+    border: 1.5px solid currentColor;
+    border-radius: 50%;
+    background: transparent;
+    transition: all .15s;
+  }
+  .env-btn.on {
+    color: var(--paper);
+  }
+  .env-btn.on .env-dot { background: currentColor; }
+  /* TEST env color: olive/teal */
+  .env-btn[data-env="test"].on { background: #20524d; }
+  /* PROD env color: deep crimson */
+  .env-btn[data-env="prod"].on { background: #a72612; }
+  .env-btn[disabled] {
+    opacity: .35;
+    cursor: not-allowed;
+  }
+  .env-btn[disabled]::after {
+    content: "·미설정";
+    font-size: 9px;
+    letter-spacing: .1em;
+    color: var(--ink-mute);
+  }
+
+  /* Color-coded toolbar bottom border by env */
+  .toolbar { border-bottom-width: 3px; transition: border-color .25s; }
+  .toolbar[data-env="test"] { border-bottom-color: #20524d; }
+  .toolbar[data-env="prod"] { border-bottom-color: #a72612; }
+
+  .toolbar .db-info {
+    display: flex;
+    align-items: baseline;
+    gap: 12px;
+    padding: 6px 14px;
+    border: 1px solid var(--ink);
+    background: var(--paper-2);
+    box-shadow: var(--shadow-1);
+    min-width: 0;
+    max-width: 540px;
+    transition: all .25s;
+  }
+  .toolbar[data-env="test"] .db-info {
+    background: rgba(32,82,77,.08);
+    border-color: #20524d;
+  }
+  .toolbar[data-env="prod"] .db-info {
+    background: rgba(167,38,18,.08);
+    border-color: #a72612;
+  }
+  .toolbar[data-env="prod"] .db-info .db-label { color: #a72612; font-weight: 600; }
+  .toolbar[data-env="test"] .db-info .db-label { color: #20524d; }
+
+  /* PROD env: red ribbon down the side as a permanent visual warning */
+  body.env-prod::after {
+    content: "PRODUCTION · 실제 발송 환경";
+    position: fixed;
+    top: 50%; right: -90px;
+    transform: translateY(-50%) rotate(90deg);
+    transform-origin: center;
+    background: #a72612;
+    color: var(--paper);
+    font-family: var(--mono);
+    font-size: 10px;
+    letter-spacing: .35em;
+    padding: 6px 22px;
+    z-index: 5;
+    pointer-events: none;
+    box-shadow: 0 4px 16px rgba(167,38,18,.4);
+  }
+  .toolbar .db-info .db-label {
+    font-family: var(--mono);
+    font-size: 10px;
+    letter-spacing: .2em;
+    text-transform: uppercase;
+    color: var(--ink-mute);
+    flex: 0 0 auto;
+    transform: translateY(-1px);
+  }
+  .toolbar .db-info .db-title {
+    font-family: var(--display);
+    font-weight: 400;
+    font-style: italic;
+    font-size: 17px;
+    color: var(--ink);
+    letter-spacing: -.005em;
+    line-height: 1.2;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 320px;
+  }
+  .toolbar .db-info .db-id {
+    font-family: var(--mono);
+    font-size: 10.5px;
+    color: var(--vermilion);
+    letter-spacing: .04em;
+    border-bottom: 1px dotted var(--vermilion);
+    text-decoration: none;
+    flex: 0 0 auto;
+  }
+  .toolbar .db-info .db-id:hover { color: var(--vermilion-2); }
+  .toolbar .db-info.err .db-title { color: var(--vermilion); }
+  .toolbar .right {
+    display: flex; align-items: center; gap: 12px;
+  }
+  .notion-chip {
+    display: inline-flex; align-items: center; gap: 8px;
+    border: 1px solid var(--ink);
+    padding: 6px 11px;
+    background: var(--paper-2);
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--ink-2);
+    box-shadow: var(--shadow-1);
+  }
+  .notion-chip svg { width: 12px; height: 12px; }
+  .pulse {
+    position: relative;
+    width: 8px; height: 8px; border-radius: 50%;
+    background: var(--ok);
+    box-shadow: 0 0 0 0 rgba(47,111,63,.55);
+    animation: pulse 1.8s infinite;
+  }
+  @keyframes pulse {
+    0% { box-shadow: 0 0 0 0 rgba(47,111,63,.55); }
+    70% { box-shadow: 0 0 0 10px rgba(47,111,63,0); }
+    100% { box-shadow: 0 0 0 0 rgba(47,111,63,0); }
+  }
+  .sync-btn {
+    font-family: var(--mono);
+    font-size: 10px;
+    letter-spacing: .16em;
+    text-transform: uppercase;
+    padding: 7px 12px;
+    background: var(--ink);
+    color: var(--paper);
+    border: 1px solid var(--ink);
+    cursor: pointer;
+    transition: all .15s;
+  }
+  .sync-btn:hover { background: transparent; color: var(--ink); }
+
+  /* ===== Main layout ===== */
+  .frame {
+    position: relative;
+    z-index: 2;
+    max-width: 1320px;
+    margin: 0 auto;
+    padding: 22px 28px 100px;
+  }
+  .work {
+    display: grid;
+    grid-template-columns: 296px 1fr;
+    gap: 22px;
+  }
+
+  /* ===== Panels ===== */
+  .panel {
+    background: var(--paper-2);
+    border: 1px solid var(--ink);
+    box-shadow: var(--shadow-2);
+    position: relative;
+  }
+  .panel-head {
+    display: flex; justify-content: space-between; align-items: center;
+    padding: 12px 16px;
+    border-bottom: 1px solid var(--ink);
+  }
+  .panel-title {
+    font-family: var(--mono);
+    font-size: 11px;
+    letter-spacing: .22em;
+    text-transform: uppercase;
+  }
+  .panel-num {
+    font-family: var(--display);
+    font-style: italic;
+    font-weight: 300;
+    font-size: 18px;
+    color: var(--vermilion);
+  }
+
+  /* ===== Sidebar ===== */
+  .side { display: flex; flex-direction: column; gap: 22px; }
+  .filters .row {
+    padding: 14px 16px;
+    border-bottom: 1px dashed var(--rule);
+    display: flex; flex-direction: column; gap: 10px;
+  }
+  .filters .row:last-child { border-bottom: none; }
+  .filters label.k {
+    font-family: var(--mono);
+    font-size: 10px;
+    letter-spacing: .2em;
+    text-transform: uppercase;
+    color: var(--ink-mute);
+  }
+  .search {
+    display: flex; align-items: center; gap: 8px;
+    border: 1px solid var(--ink);
+    background: var(--paper);
+    padding: 8px 10px;
+  }
+  .search input {
+    flex: 1;
+    border: none; background: transparent; outline: none;
+    font-family: var(--serif-kr);
+    font-size: 14px;
+    color: var(--ink);
+  }
+  .search svg { width: 14px; height: 14px; opacity: .65; }
+
+  .tier-legend { display: flex; flex-direction: column; gap: 4px; }
+  .tier-row {
+    display: grid;
+    grid-template-columns: auto 1fr auto;
+    gap: 10px; align-items: center;
+    padding: 6px 8px;
+    cursor: pointer;
+    border: 1px solid transparent;
+    transition: all .15s;
+  }
+  .tier-row:hover { background: var(--paper); border-color: var(--rule); }
+  .tier-row.active { background: var(--paper); border-color: var(--ink); }
+  .tier-row .name {
+    font-family: var(--serif-kr);
+    font-size: 13px;
+    color: var(--ink-2);
+  }
+  .tier-row .count {
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--ink-mute);
+  }
+
+  /* Unified tier tag — mono code on colored bg */
+  .tier-tag {
+    display: inline-flex;
+    align-items: center;
+    height: 24px;
+    padding: 0 9px;
+    font-family: var(--mono);
+    font-size: 11px;
+    font-weight: 500;
+    color: var(--paper);
+    letter-spacing: .04em;
+    white-space: nowrap;
+    border: 1px solid rgba(0,0,0,.18);
+    box-shadow: 0 1px 0 rgba(22,36,58,.12);
+  }
+  .tier-tag.lg { height: 28px; font-size: 12px; padding: 0 11px; }
+  .tier-tag.sm { height: 20px; font-size: 10px; padding: 0 7px; }
+  .tier-tag.all {
+    background: transparent;
+    color: var(--ink);
+    border-color: var(--ink);
+    box-shadow: none;
+  }
+  .tier-tag.unknown {
+    background: transparent;
+    color: var(--ink-mute);
+    border: 1px dashed var(--ink-mute);
+    box-shadow: none;
+  }
+
+  /* ===== Template upload ===== */
+  .templates .row-tmpl {
+    padding: 12px 16px;
+    border-bottom: 1px dashed var(--rule);
+  }
+  .templates .row-tmpl:last-child { border-bottom: none; }
+  .tmpl-line {
+    display: grid;
+    grid-template-columns: auto 1fr auto auto;
+    gap: 10px;
+    align-items: center;
+    margin-bottom: 8px;
+  }
+  .tmpl-line .status-tag {
+    font-family: var(--mono);
+    font-size: 9.5px;
+    letter-spacing: .14em;
+    text-transform: uppercase;
+    padding: 3px 7px;
+    border: 1px solid var(--rule);
+    color: var(--ink-mute);
+  }
+  .tmpl-line .status-tag.loaded {
+    color: var(--ok);
+    border-color: var(--ok);
+  }
+  .tmpl-line .remove-tier {
+    width: 22px; height: 22px;
+    display: grid; place-items: center;
+    background: transparent;
+    border: 1px solid var(--rule);
+    color: var(--ink-mute);
+    font-family: var(--mono);
+    font-size: 12px;
+    cursor: pointer;
+    transition: all .15s;
+    padding: 0;
+  }
+  .tmpl-line .remove-tier:hover {
+    border-color: var(--vermilion);
+    color: var(--vermilion);
+    background: rgba(201,52,28,.08);
+  }
+
+  /* Add tier UI */
+  .add-tier {
+    padding: 12px 16px;
+    border-top: 1px solid var(--ink);
+    background: var(--paper-3);
+    display: grid;
+    grid-template-columns: 1fr auto;
+    gap: 6px;
+  }
+  .add-tier input {
+    border: 1px solid var(--ink);
+    background: var(--paper);
+    padding: 7px 10px;
+    font-family: var(--mono);
+    font-size: 12px;
+    color: var(--ink);
+    outline: none;
+    letter-spacing: .04em;
+  }
+  .add-tier input:focus { border-color: var(--vermilion); }
+  .add-tier input::placeholder { color: var(--ink-mute); font-style: italic; }
+  .add-tier button {
+    font-family: var(--mono);
+    font-size: 10px;
+    letter-spacing: .16em;
+    text-transform: uppercase;
+    padding: 7px 14px;
+    background: var(--ink);
+    color: var(--paper);
+    border: 1px solid var(--ink);
+    cursor: pointer;
+    transition: all .15s;
+  }
+  .add-tier button:hover { background: var(--vermilion); border-color: var(--vermilion); }
+  .empty-tiers {
+    padding: 22px 16px;
+    text-align: center;
+    font-family: var(--serif-kr);
+    font-size: 12px;
+    color: var(--ink-mute);
+    font-style: italic;
+  }
+
+  /* Phase rows (1차 / 2차) inside template slot */
+  .phase-row {
+    padding: 10px 0;
+    border-top: 1px dashed var(--rule-2);
+  }
+  .phase-row:first-of-type { border-top: 1px solid var(--rule); padding-top: 12px; }
+  .phase-head {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 8px;
+  }
+  .phase-pill {
+    display: inline-grid; place-items: center;
+    width: 28px; height: 18px;
+    border-radius: 2px;
+    font-family: var(--mono);
+    font-size: 9.5px;
+    letter-spacing: .06em;
+    font-weight: 600;
+    color: var(--paper);
+    background: var(--ink);
+  }
+  .phase-pill.secondary {
+    background: var(--paper);
+    color: var(--ink);
+    border: 1px solid var(--ink);
+  }
+  .phase-label {
+    flex: 1;
+    font-family: var(--serif-kr);
+    font-size: 12px;
+    color: var(--ink-2);
+  }
+
+  .uploader {
+    display: grid;
+    grid-template-columns: 1fr auto;
+    gap: 6px;
+    align-items: stretch;
+  }
+  .file-name {
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--ink-2);
+    background: var(--paper);
+    border: 1px solid var(--rule);
+    padding: 7px 10px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    display: flex; align-items: center;
+  }
+  .file-name.empty {
+    color: var(--ink-mute);
+    font-style: italic;
+  }
+  .upload-btn {
+    font-family: var(--mono);
+    font-size: 10px;
+    letter-spacing: .16em;
+    text-transform: uppercase;
+    padding: 7px 12px;
+    background: var(--ink);
+    color: var(--paper);
+    border: 1px solid var(--ink);
+    cursor: pointer;
+    transition: all .15s;
+    display: inline-flex; align-items: center; gap: 6px;
+  }
+  .upload-btn:hover { background: var(--vermilion); border-color: var(--vermilion); }
+  .upload-btn svg { width: 11px; height: 11px; }
+  .upload-btn input { display: none; }
+
+  .tmpl-actions {
+    margin-top: 8px;
+    display: flex; gap: 10px;
+    font-family: var(--mono);
+    font-size: 10px;
+    letter-spacing: .14em;
+    text-transform: uppercase;
+  }
+  .tmpl-actions a {
+    color: var(--vermilion);
+    cursor: pointer;
+    border-bottom: 1px solid transparent;
+    transition: border-color .15s;
+  }
+  .tmpl-actions a:hover { border-bottom-color: var(--vermilion); }
+  .tmpl-actions a.muted { color: var(--ink-mute); }
+  .tmpl-actions a.muted:hover { border-bottom-color: var(--ink-mute); }
+
+  /* ===== Table ===== */
+  .table-wrap { display: flex; flex-direction: column; min-height: 600px; }
+  .table-tools {
+    display: flex; justify-content: space-between; align-items: center;
+    padding: 10px 16px;
+    border-bottom: 1px solid var(--ink);
+    background: var(--paper-3);
+  }
+  .tool-group { display: flex; align-items: center; gap: 14px; }
+  .stat-inline {
+    font-family: var(--mono);
+    font-size: 11px;
+    letter-spacing: .14em;
+    color: var(--ink-2);
+    text-transform: uppercase;
+  }
+  .stat-inline em {
+    font-family: var(--display);
+    font-style: italic;
+    font-size: 14px;
+    color: var(--ink);
+    margin-right: 4px;
+    letter-spacing: 0;
+    text-transform: none;
+  }
+  .seg {
+    display: inline-flex;
+    border: 1px solid var(--ink);
+    background: var(--paper);
+  }
+  .seg button {
+    background: transparent;
+    border: none;
+    font-family: var(--mono);
+    font-size: 11px;
+    letter-spacing: .15em;
+    text-transform: uppercase;
+    padding: 6px 12px;
+    color: var(--ink);
+    cursor: pointer;
+    border-right: 1px solid var(--ink);
+  }
+  .seg button:last-child { border-right: none; }
+  .seg button.on { background: var(--ink); color: var(--paper); }
+
+  .table-scroll {
+    flex: 1;
+    overflow-y: auto;
+    max-height: 640px;
+  }
+  table { width: 100%; border-collapse: collapse; }
+  thead th {
+    position: sticky; top: 0; z-index: 2;
+    background: var(--paper-2);
+    text-align: left;
+    font-family: var(--mono);
+    font-size: 10px;
+    letter-spacing: .18em;
+    text-transform: uppercase;
+    color: var(--ink-2);
+    padding: 12px 14px;
+    border-bottom: 1px solid var(--ink);
+    font-weight: 500;
+  }
+  tbody td {
+    padding: 14px;
+    border-bottom: 1px dashed var(--rule);
+    font-size: 13px;
+    vertical-align: middle;
+  }
+  tbody tr { transition: background .12s; cursor: pointer; }
+  tbody tr:hover { background: var(--paper); }
+  tbody tr.checked { background: rgba(201,52,28,.06); }
+
+  .cb {
+    width: 16px; height: 16px;
+    border: 1.5px solid var(--ink);
+    background: var(--paper);
+    display: inline-grid; place-items: center;
+    cursor: pointer;
+    transition: all .12s;
+    vertical-align: middle;
+  }
+  .cb.on { background: var(--ink); }
+  .cb.on::after {
+    content: "";
+    width: 8px; height: 4px;
+    border: 2px solid var(--paper);
+    border-top: none; border-right: none;
+    transform: rotate(-45deg) translate(0px, -1px);
+  }
+
+  .uni { display: flex; flex-direction: column; gap: 2px; }
+  .uni .ko {
+    font-family: var(--serif-kr);
+    font-weight: 500;
+    color: var(--ink);
+    font-size: 14.5px;
+    letter-spacing: -.005em;
+  }
+  .uni .en {
+    font-family: var(--display);
+    font-style: italic;
+    font-weight: 300;
+    font-size: 12px;
+    color: var(--ink-mute);
+  }
+  .country {
+    font-family: var(--mono);
+    font-size: 10px;
+    letter-spacing: .15em;
+    color: var(--ink-2);
+    text-transform: uppercase;
+  }
+  .country .flag {
+    display: inline-block;
+    width: 8px; height: 8px;
+    border-radius: 50%;
+    margin-right: 6px;
+    transform: translateY(-1px);
+  }
+  .deg {
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--ink-2);
+  }
+
+  .tier-pill {
+    display: inline-grid;
+    place-items: center;
+    width: 30px; height: 30px;
+    font-family: var(--display);
+    font-weight: 500;
+    font-size: 14px;
+    color: var(--paper);
+    box-shadow: 0 2px 0 rgba(22,36,58,.18);
+  }
+  .tier-cell {
+    display: flex; align-items: center; gap: 10px;
+  }
+  .tier-cell .tmpl-tag {
+    font-family: var(--mono);
+    font-size: 10px;
+    letter-spacing: .12em;
+    text-transform: uppercase;
+    color: var(--ink-mute);
+  }
+  .tier-cell .tmpl-tag.ready { color: var(--ok); }
+  .tier-cell .tmpl-tag.missing { color: var(--vermilion); }
+
+  .status {
+    display: inline-flex; align-items: center; gap: 6px;
+    font-family: var(--mono);
+    font-size: 10.5px;
+    letter-spacing: .14em;
+    text-transform: uppercase;
+  }
+  .status .dot { width: 6px; height: 6px; border-radius: 50%; }
+  .status.draft     { color: var(--ink-mute); }
+  .status.draft .dot{ background: var(--ink-mute); }
+  .status.primary   { color: var(--warn); }
+  .status.primary .dot { background: var(--warn); }
+  .status.secondary { color: var(--vermilion); }
+  .status.secondary .dot { background: var(--vermilion); }
+  .status.replied   { color: var(--ok); }
+  .status.replied .dot { background: var(--ok); }
+  .status.failed    { color: var(--vermilion); }
+  .status.failed .dot { background: var(--vermilion); }
+
+  .date { font-family: var(--mono); font-size: 11px; color: var(--ink-2); }
+
+  .code-cell {
+    font-family: var(--mono);
+    font-size: 12.5px;
+    font-weight: 500;
+    color: var(--ink);
+    letter-spacing: .04em;
+  }
+
+  .state-msg {
+    padding: 60px 24px;
+    text-align: center;
+    font-family: var(--serif-kr);
+    font-size: 14px;
+    color: var(--ink-mute);
+    line-height: 1.7;
+  }
+  .state-msg .big {
+    font-family: var(--display);
+    font-style: italic;
+    font-weight: 300;
+    font-size: 26px;
+    color: var(--ink);
+    display: block;
+    margin-bottom: 10px;
+  }
+  .state-msg.err .big { color: var(--vermilion); }
+  .state-msg code {
+    font-family: var(--mono);
+    font-size: 11px;
+    background: var(--paper);
+    padding: 2px 6px;
+    border: 1px solid var(--rule);
+    color: var(--vermilion-2);
+  }
+  .spinner {
+    display: inline-block;
+    width: 18px; height: 18px;
+    border: 2px solid var(--rule);
+    border-top-color: var(--ink);
+    border-radius: 50%;
+    animation: spin .8s linear infinite;
+    vertical-align: middle;
+    margin-right: 10px;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  .notion-chip.err {
+    border-color: var(--vermilion);
+    color: var(--vermilion-2);
+    background: rgba(201,52,28,.06);
+  }
+  .notion-chip.err .pulse { background: var(--vermilion); animation: none; }
+
+  /* ===== Bulk action bar ===== */
+  .bulkbar {
+    position: fixed;
+    bottom: 22px;
+    left: 50%;
+    transform: translateX(-50%) translateY(140%);
+    z-index: 30;
+    background: var(--ink);
+    color: var(--paper);
+    padding: 14px 22px;
+    display: grid;
+    grid-template-columns: auto 1fr auto;
+    gap: 22px;
+    align-items: center;
+    min-width: 680px;
+    box-shadow: 0 30px 60px -20px rgba(22,36,58,.6);
+    transition: transform .35s cubic-bezier(.2,.8,.2,1);
+  }
+  .bulkbar.show { transform: translateX(-50%) translateY(0); }
+  .bulkbar .count-pill {
+    width: 44px; height: 44px;
+    border: 1.5px solid var(--paper);
+    display: grid; place-items: center;
+    font-family: var(--display);
+    font-style: italic;
+    font-size: 22px;
+  }
+  .bulkbar .info { display: flex; flex-direction: column; gap: 2px; }
+  .bulkbar .info .l1 {
+    font-family: var(--serif-kr);
+    font-size: 14px;
+  }
+  .bulkbar .info .l2 {
+    font-family: var(--mono);
+    font-size: 10px;
+    letter-spacing: .18em;
+    text-transform: uppercase;
+    color: rgba(243,236,220,.6);
+  }
+  .bulkbar .actions { display: flex; gap: 10px; }
+  .btn {
+    font-family: var(--mono);
+    font-size: 11px;
+    letter-spacing: .18em;
+    text-transform: uppercase;
+    padding: 10px 14px;
+    cursor: pointer;
+    border: 1px solid var(--paper);
+    background: transparent;
+    color: var(--paper);
+    transition: all .15s;
+  }
+  .btn:hover { background: var(--paper); color: var(--ink); }
+  .btn.primary {
+    background: var(--vermilion);
+    border-color: var(--vermilion);
+    color: var(--paper);
+  }
+  .btn.primary:hover { background: var(--vermilion-2); border-color: var(--vermilion-2); }
+  .btn[disabled] {
+    opacity: .35;
+    cursor: not-allowed;
+  }
+
+  /* Toast */
+  .toast {
+    position: fixed;
+    top: 24px; right: 24px;
+    z-index: 50;
+    background: var(--ink);
+    color: var(--paper);
+    padding: 12px 16px;
+    font-family: var(--mono);
+    font-size: 11px;
+    letter-spacing: .14em;
+    text-transform: uppercase;
+    border-left: 4px solid var(--vermilion);
+    transform: translateX(140%);
+    transition: transform .35s cubic-bezier(.2,.8,.2,1);
+    box-shadow: 0 20px 40px -20px rgba(0,0,0,.5);
+  }
+  .toast.show { transform: translateX(0); }
+
+  /* responsive */
+  @media (max-width: 1080px) {
+    .work { grid-template-columns: 1fr; }
+  }
+  @media (max-width: 720px) {
+    .toolbar { grid-template-columns: 1fr; gap: 10px; }
+    .toolbar .center { justify-self: start; flex-wrap: wrap; }
+  }
+
+  /* ===== Tabs ===== */
+  .tabbar {
+    position: relative;
+    z-index: 9;
+    max-width: 1320px;
+    margin: 0 auto;
+    padding: 18px 28px 0;
+  }
+  .tabs {
+    display: inline-flex;
+    border-bottom: 1px solid var(--ink);
+    gap: 0;
+  }
+  .tab {
+    background: transparent;
+    border: 1px solid var(--ink);
+    border-bottom: none;
+    font-family: var(--display);
+    font-style: italic;
+    font-weight: 300;
+    font-size: 18px;
+    color: var(--ink-mute);
+    padding: 8px 22px;
+    cursor: pointer;
+    transition: all .15s;
+    display: inline-flex; align-items: center; gap: 10px;
+    border-right-width: 0;
+    margin-bottom: -1px;
+  }
+  .tab:last-child { border-right-width: 1px; }
+  .tab:hover { color: var(--ink); }
+  .tab.on {
+    color: var(--ink);
+    background: var(--paper-2);
+    box-shadow: 0 -1px 0 var(--ink), inset 0 3px 0 var(--vermilion);
+    padding-top: 11px;
+  }
+  .tab-badge {
+    font-family: var(--mono);
+    font-style: normal;
+    font-size: 10px;
+    letter-spacing: .1em;
+    color: var(--ink-mute);
+    padding: 2px 7px;
+    background: var(--paper);
+    border: 1px solid var(--rule);
+  }
+  .tab.on .tab-badge {
+    color: var(--ok);
+    border-color: var(--ok);
+  }
+  .tab-badge.warn { color: var(--vermilion) !important; border-color: var(--vermilion) !important; }
+
+  .tab-panel { display: none; }
+  .tab-panel.on { display: grid; }
+
+  .tier-hint {
+    font-family: var(--mono);
+    font-size: 9.5px;
+    letter-spacing: .14em;
+    color: var(--ink-mute);
+    text-transform: uppercase;
+    margin-top: 4px;
+  }
+
+  /* ===== Templates tab ===== */
+  .templates-tab {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 22px;
+    grid-column: 1 / -1;
+  }
+  .tmpl-card {
+    background: var(--paper-2);
+    border: 1px solid var(--ink);
+    box-shadow: var(--shadow-2);
+    display: flex; flex-direction: column;
+    min-height: 420px;
+  }
+  .tmpl-card .card-head {
+    padding: 18px 22px;
+    border-bottom: 1px solid var(--ink);
+    display: flex; align-items: center; justify-content: space-between;
+    background: var(--paper-3);
+  }
+  .tmpl-card .card-head .left {
+    display: flex; align-items: center; gap: 14px;
+  }
+  .tmpl-card .phase-num {
+    width: 46px; height: 46px;
+    display: grid; place-items: center;
+    font-family: var(--display);
+    font-style: italic;
+    font-size: 26px;
+    font-weight: 400;
+    border: 1.5px solid var(--ink);
+    background: var(--paper);
+  }
+  .tmpl-card[data-phase="secondary"] .phase-num {
+    background: var(--ink);
+    color: var(--paper);
+  }
+  .tmpl-card .title {
+    font-family: var(--display);
+    font-style: italic;
+    font-weight: 400;
+    font-size: 26px;
+    letter-spacing: -.01em;
+    color: var(--ink);
+    line-height: 1;
+  }
+  .tmpl-card .sub {
+    font-family: var(--serif-kr);
+    font-size: 12.5px;
+    color: var(--ink-2);
+    margin-top: 4px;
+  }
+  .tmpl-card .status-tag {
+    font-family: var(--mono);
+    font-size: 10px;
+    letter-spacing: .16em;
+    text-transform: uppercase;
+    padding: 5px 10px;
+    border: 1px solid var(--rule);
+    color: var(--ink-mute);
+  }
+  .tmpl-card .status-tag.loaded {
+    color: var(--ok);
+    border-color: var(--ok);
+    background: rgba(47,111,63,.06);
+  }
+  .tmpl-card .card-body {
+    flex: 1;
+    padding: 22px;
+    display: flex; flex-direction: column;
+    gap: 16px;
+  }
+  .drop-zone {
+    border: 2px dashed var(--rule);
+    padding: 36px 24px;
+    text-align: center;
+    background: var(--paper);
+    cursor: pointer;
+    transition: all .15s;
+    display: flex; flex-direction: column; align-items: center; gap: 10px;
+  }
+  .drop-zone:hover { border-color: var(--ink); }
+  .drop-zone.has-file { border-style: solid; border-color: var(--ok); background: rgba(47,111,63,.04); }
+  .drop-zone.drag-over { border-color: var(--vermilion); background: rgba(201,52,28,.04); }
+  .drop-zone .icon {
+    width: 32px; height: 32px;
+    opacity: .55;
+  }
+  .drop-zone.has-file .icon { opacity: 1; color: var(--ok); }
+  .drop-zone .title-d {
+    font-family: var(--serif-kr);
+    font-size: 14px;
+    color: var(--ink);
+  }
+  .drop-zone .hint {
+    font-family: var(--mono);
+    font-size: 10px;
+    letter-spacing: .14em;
+    color: var(--ink-mute);
+    text-transform: uppercase;
+  }
+  .drop-zone .file-info {
+    font-family: var(--mono);
+    font-size: 12px;
+    color: var(--ink);
+    word-break: break-all;
+    padding: 0 20px;
+  }
+  .drop-zone .file-info .sz {
+    color: var(--ink-mute);
+    margin-left: 10px;
+    letter-spacing: .04em;
+  }
+  .drop-zone input { display: none; }
+
+  .tmpl-card .card-actions {
+    padding: 14px 22px;
+    border-top: 1px dashed var(--rule);
+    display: flex; gap: 12px;
+    background: var(--paper-2);
+  }
+  .tmpl-card .card-actions button {
+    flex: 1;
+    font-family: var(--mono);
+    font-size: 11px;
+    letter-spacing: .16em;
+    text-transform: uppercase;
+    padding: 10px 14px;
+    background: transparent;
+    border: 1px solid var(--ink);
+    color: var(--ink);
+    cursor: pointer;
+    transition: all .15s;
+  }
+  .tmpl-card .card-actions button:hover { background: var(--ink); color: var(--paper); }
+  .tmpl-card .card-actions button:disabled { opacity: .35; cursor: not-allowed; }
+  .tmpl-card .card-actions button.danger {
+    border-color: var(--vermilion);
+    color: var(--vermilion);
+  }
+  .tmpl-card .card-actions button.danger:hover { background: var(--vermilion); color: var(--paper); }
+
+  @media (max-width: 900px) {
+    .templates-tab { grid-template-columns: 1fr; }
+  }
+
+  /* enter animations */
+  .reveal { opacity: 0; transform: translateY(6px); animation: reveal .6s cubic-bezier(.2,.8,.2,1) forwards; }
+  @keyframes reveal { to { opacity: 1; transform: none; } }
+  .d1 { animation-delay: .04s; }
+  .d2 { animation-delay: .12s; }
+</style>
+</head>
+<body>
+
+<!-- ===== Toolbar ===== -->
+<header class="toolbar" data-env="test">
+  <div class="brand">
+    <div class="mark">L</div>
+    <div class="name">대학 발송 콘솔</div>
+  </div>
+  <div class="center-zone">
+    <div class="env-switch" id="envSwitch" title="데이터베이스 환경 선택">
+      <button class="env-btn on" data-env="test">
+        <span class="env-dot"></span>
+        <span class="env-name">TEST</span>
+      </button>
+      <button class="env-btn" data-env="prod">
+        <span class="env-dot"></span>
+        <span class="env-name">PROD</span>
+      </button>
+    </div>
+    <div class="db-info" title="연결된 Notion 데이터베이스">
+      <span class="db-label">DB</span>
+      <span class="db-title" id="dbTitle">— 연결 확인 중…</span>
+      <a class="db-id" id="dbLink" href="#" target="_blank" rel="noopener">—</a>
+    </div>
+  </div>
+  <div class="right">
+    <div class="notion-chip" title="Notion 연결 상태">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><rect x="3" y="3" width="18" height="18"/><path d="M7 7l10 10M7 17V7l10 10V7"/></svg>
+      <span>NOTION</span>
+      <span class="pulse"></span>
+      <span id="notionLabel">connecting…</span>
+    </div>
+    <button class="sync-btn" id="syncBtn">↻ Sync</button>
+  </div>
+</header>
+
+<!-- ===== Tabs ===== -->
+<div class="tabbar">
+  <div class="tabs">
+    <button class="tab on" data-tab="dispatch">발송</button>
+    <button class="tab" data-tab="templates">템플릿 관리<span class="tab-badge" id="tmplBadge">2/2</span></button>
+  </div>
+</div>
+
+<!-- ===== Main ===== -->
+<div class="frame">
+
+  <!-- ===== Dispatch tab ===== -->
+  <section class="work tab-panel on" data-tab-panel="dispatch">
+
+    <!-- Sidebar -->
+    <aside class="side reveal d1">
+      <div class="panel filters">
+        <div class="panel-head">
+          <span class="panel-title">filters</span>
+          <span class="panel-num">i.</span>
+        </div>
+        <div class="row">
+          <label class="k">search · 검색</label>
+          <div class="search">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4-4"/></svg>
+            <input id="search" placeholder="대학명 또는 코드" />
+          </div>
+        </div>
+        <div class="row">
+          <label class="k">tier · 신청등급</label>
+          <div class="tier-legend" id="tierLegend"></div>
+          <div class="tier-hint">노션 데이터에서 자동 추출</div>
+        </div>
+      </div>
+    </aside>
+
+    <!-- Table -->
+    <main class="panel table-wrap reveal d2">
+      <div class="table-tools">
+        <div class="tool-group">
+          <span class="panel-title">대학 목록 · from Notion</span>
+        </div>
+        <div class="tool-group">
+          <div class="seg" id="statusSeg">
+            <button class="on" data-status="ALL">전체</button>
+            <button data-status="draft">미발송</button>
+            <button data-status="primary">1차 발송</button>
+            <button data-status="secondary">2차 발송</button>
+            <button data-status="replied">회신완료</button>
+          </div>
+        </div>
+      </div>
+      <div class="table-scroll">
+        <table>
+          <thead>
+            <tr>
+              <th style="width:42px"><div class="cb" id="cbAll" title="전체 선택"></div></th>
+              <th style="width:54px">no.</th>
+              <th style="width:140px">대학코드</th>
+              <th>대학명</th>
+              <th style="width:240px">신청등급 · Template</th>
+              <th style="width:140px">Status</th>
+            </tr>
+          </thead>
+          <tbody id="uniBody"></tbody>
+        </table>
+      </div>
+    </main>
+
+  </section>
+
+  <!-- ===== Templates tab ===== -->
+  <section class="tab-panel templates-tab" data-tab-panel="templates">
+
+    <div class="tmpl-card" data-phase="primary">
+      <div class="card-head">
+        <div class="left">
+          <div class="phase-num">I</div>
+          <div>
+            <div class="title">1차 발송 템플릿</div>
+            <div class="sub">모든 대학에 동일하게 발송되는 기본 메일</div>
+          </div>
+        </div>
+        <span class="status-tag" data-tag="primary">미등록</span>
+      </div>
+      <div class="card-body">
+        <label class="drop-zone" data-zone="primary">
+          <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+            <path d="M12 3v12m0-12l-5 5m5-5l5 5M4 17v2a2 2 0 002 2h12a2 2 0 002-2v-2"/>
+          </svg>
+          <div class="title-d" data-prompt="primary">파일을 드래그하거나 클릭하여 업로드</div>
+          <div class="hint">.html · .eml · .txt · .md</div>
+          <input type="file" accept=".html,.htm,.eml,.txt,.md" data-input="primary" />
+        </label>
+        <div class="file-info" data-info="primary" style="display:none"></div>
+      </div>
+      <div class="card-actions">
+        <button data-act="view" data-phase="primary" disabled>미리보기</button>
+        <button class="danger" data-act="clear" data-phase="primary" disabled>제거</button>
+      </div>
+    </div>
+
+    <div class="tmpl-card" data-phase="secondary">
+      <div class="card-head">
+        <div class="left">
+          <div class="phase-num">II</div>
+          <div>
+            <div class="title">2차 리마인드 템플릿</div>
+            <div class="sub">1차 발송 후 회신이 없는 대학에만 발송</div>
+          </div>
+        </div>
+        <span class="status-tag" data-tag="secondary">미등록</span>
+      </div>
+      <div class="card-body">
+        <label class="drop-zone" data-zone="secondary">
+          <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+            <path d="M12 3v12m0-12l-5 5m5-5l5 5M4 17v2a2 2 0 002 2h12a2 2 0 002-2v-2"/>
+          </svg>
+          <div class="title-d" data-prompt="secondary">파일을 드래그하거나 클릭하여 업로드</div>
+          <div class="hint">.html · .eml · .txt · .md</div>
+          <input type="file" accept=".html,.htm,.eml,.txt,.md" data-input="secondary" />
+        </label>
+        <div class="file-info" data-info="secondary" style="display:none"></div>
+      </div>
+      <div class="card-actions">
+        <button data-act="view" data-phase="secondary" disabled>미리보기</button>
+        <button class="danger" data-act="clear" data-phase="secondary" disabled>제거</button>
+      </div>
+    </div>
+
+  </section>
+</div>
+
+<!-- Bulk action bar -->
+<div class="bulkbar" id="bulkbar">
+  <div class="count-pill" id="bulkCount">0</div>
+  <div class="info">
+    <div class="l1"><span id="bulkText">선택된 대학교를 일괄 발송합니다.</span></div>
+  </div>
+  <div class="actions">
+    <button class="btn" id="bulkClear">선택 해제</button>
+    <button class="btn" id="bulkSendPrimary">1차 발송 →</button>
+    <button class="btn primary" id="bulkSendSecondary">2차 리마인드 →</button>
+  </div>
+</div>
+
+<div class="toast" id="toast">발송 완료 · 0건</div>
+
+<script>
+  // ===== Data — fetched live from Notion via /api/universities =====
+  let UNIS = [];                                      // { id, code, name, tiers:[], url }
+  const LOCAL_STATUS = {};                            // id → 'draft' | 'primary' | 'secondary' | 'replied' | 'failed'
+  const TEMPLATES = { primary: null, secondary: null };
+
+  // ===== Env (TEST / PROD) =====
+  const ENV_KEY = "dispatch.env";
+  let ENV = (localStorage.getItem(ENV_KEY) === "prod") ? "prod" : "test";
+  let ENV_CONFIG = { test: false, prod: false };       // configured flags from /api/envs
+  function applyEnvTheme() {
+    document.querySelector(".toolbar").dataset.env = ENV;
+    document.body.classList.toggle("env-prod", ENV === "prod");
+    document.querySelectorAll(".env-btn").forEach(b => b.classList.toggle("on", b.dataset.env === ENV));
+  }
+
+  // ===== Tier palette (auto-derived from data) =====
+  const PALETTE = ["#6c2238", "#c9341c", "#b08a2e", "#20524d", "#5e6232", "#3a4d8a", "#7a4d20", "#3a3a55"];
+  function tierColor(tier) {
+    let h = 0;
+    for (let i = 0; i < (tier || "").length; i++) h = (h * 31 + tier.charCodeAt(i)) | 0;
+    return PALETTE[Math.abs(h) % PALETTE.length];
+  }
+  function derivedTiers() {
+    const set = new Set();
+    UNIS.forEach(u => (u.tiers || []).forEach(t => set.add(t)));
+    return [...set].sort();
+  }
+
+  const state = {
+    selected: new Set(),
+    activeTier: "ALL",
+    status: "ALL",
+    search: "",
+    loading: true,
+    error: null
+  };
+
+  // ===== Rendering =====
+  const body = document.getElementById("uniBody");
+
+  function statusOf(u) { return LOCAL_STATUS[u.id] || 'draft'; }
+  function statusLabel(s) {
+    switch (s) {
+      case 'primary':   return '1차 발송';
+      case 'secondary': return '2차 발송';
+      case 'replied':   return '회신완료';
+      case 'failed':    return '실패';
+      default:          return '미발송';
+    }
+  }
+  function escapeHtml(s) {
+    return String(s ?? "").replace(/[&<>"']/g, c => ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[c]));
+  }
+
+  function renderTable() {
+    if (state.loading) {
+      body.innerHTML = `<tr><td colspan="6"><div class="state-msg"><span class="big"><span class="spinner"></span>Notion에서 불러오는 중…</span>대학코드 · 대학명 · 신청등급을 동기화하고 있습니다.</div></td></tr>`;
+      return;
+    }
+    if (state.error) {
+      body.innerHTML = `<tr><td colspan="6"><div class="state-msg err">
+        <span class="big">연결 실패</span>
+        ${escapeHtml(state.error)}<br/><br/>
+        <code>.env</code> 파일에 <code>NOTION_TOKEN</code>, <code>NOTION_DATABASE_ID</code>가 설정되어 있는지,<br/>
+        Integration이 해당 DB에 공유되어 있는지 확인하세요.<br/><br/>
+        <a href="/api/health" target="_blank" style="font-family:var(--mono);font-size:11px;color:var(--vermilion);letter-spacing:.14em;text-transform:uppercase;border-bottom:1px solid var(--vermilion);">health check →</a>
+      </div></td></tr>`;
+      return;
+    }
+
+    const filtered = UNIS.filter(u => {
+      if (state.activeTier !== "ALL" && !(u.tiers || []).includes(state.activeTier)) return false;
+      const s = statusOf(u);
+      if (state.status !== "ALL" && s !== state.status) return false;
+      if (state.search) {
+        const q = state.search.toLowerCase();
+        if (!((u.name || "").toLowerCase().includes(q) || (u.code || "").toLowerCase().includes(q))) return false;
+      }
+      return true;
+    });
+
+    if (filtered.length === 0) {
+      body.innerHTML = `<tr><td colspan="6"><div class="state-msg"><span class="big">결과 없음</span>필터를 조정하거나 Sync 버튼으로 다시 불러오세요.</div></td></tr>`;
+      updateCounters();
+      return;
+    }
+
+    body.innerHTML = filtered.map((u, i) => {
+      const s = statusOf(u);
+      const tiers = u.tiers || [];
+      const tiersHtml = tiers.length
+        ? tiers.map(t => `<span class="tier-tag" style="background:${tierColor(t)}">${escapeHtml(t)}</span>`).join(" ")
+        : `<span class="tier-tag unknown">(등급 없음)</span>`;
+      return `
+      <tr data-id="${escapeHtml(u.id)}" class="${state.selected.has(u.id) ? 'checked' : ''}">
+        <td><div class="cb ${state.selected.has(u.id) ? 'on' : ''}" data-cb="${escapeHtml(u.id)}"></div></td>
+        <td><span class="deg">${String(i+1).padStart(3,"0")}</span></td>
+        <td><span class="code-cell">${escapeHtml(u.code || "—")}</span></td>
+        <td>
+          <div class="uni">
+            <span class="ko">${escapeHtml(u.name || "(이름 없음)")}</span>
+          </div>
+        </td>
+        <td><div style="display:flex;flex-wrap:wrap;gap:5px;">${tiersHtml}</div></td>
+        <td><span class="status ${s}"><span class="dot"></span>${statusLabel(s)}</span></td>
+      </tr>`;
+    }).join("");
+
+    updateCounters();
+  }
+
+  function updateCounters() {
+    renderTierFilters(); // counts are part of the filter rows now
+  }
+
+  async function fetchDbInfo() {
+    const titleEl = document.getElementById("dbTitle");
+    const linkEl  = document.getElementById("dbLink");
+    const wrap = document.querySelector(".db-info");
+    try {
+      const r = await fetch(`/api/health?env=${ENV}`);
+      const data = await r.json();
+      if (data.ok) {
+        titleEl.textContent = data.title || "(제목 없음)";
+        wrap.classList.remove("err");
+        if (data.databaseId) {
+          const id = data.databaseId.replace(/-/g, "");
+          linkEl.textContent = id.slice(0,8) + "…" + id.slice(-4);
+          linkEl.href = `https://www.notion.so/${id}`;
+        }
+        if (data.missing && data.missing.length) {
+          titleEl.textContent += `  ⚠ 컬럼 누락: ${data.missing.map(m=>m.name).join(", ")}`;
+          wrap.classList.add("err");
+        }
+      } else {
+        titleEl.textContent = `연결 실패 — ${data.error || "unknown"}`;
+        linkEl.textContent = "—";
+        linkEl.removeAttribute("href");
+        wrap.classList.add("err");
+      }
+    } catch (err) {
+      titleEl.textContent = `서버 응답 없음 — ${err.message}`;
+      wrap.classList.add("err");
+    }
+  }
+
+  // ===== Notion fetch =====
+  async function fetchUniversities() {
+    state.loading = true;
+    state.error = null;
+    renderTable();
+    setNotionStatus("loading");
+    try {
+      const r = await fetch(`/api/universities?env=${ENV}`);
+      if (!r.ok) {
+        const err = await r.json().catch(() => ({}));
+        throw new Error(err.error || `HTTP ${r.status}`);
+      }
+      const data = await r.json();
+      UNIS = data.universities || [];
+      state.loading = false;
+      setNotionStatus("ok");
+      renderTable();
+      updateBulk();
+      toast(`${UNIS.length}개 대학 동기화 완료`);
+    } catch (err) {
+      state.loading = false;
+      state.error = err.message || String(err);
+      setNotionStatus("err");
+      renderTable();
+    }
+  }
+
+  function setNotionStatus(s) {
+    const chip = document.querySelector(".notion-chip");
+    chip.classList.toggle("err", s === "err");
+    const dot = chip.querySelector(".pulse");
+    const label = document.getElementById("notionLabel");
+    if (s === "ok") { dot.style.background = "var(--ok)"; label.textContent = "connected"; }
+    else if (s === "loading") { dot.style.background = "var(--warn)"; label.textContent = "syncing…"; }
+    else if (s === "err") { dot.style.background = "var(--vermilion)"; label.textContent = "disconnected"; }
+  }
+
+  // ===== Bulk =====
+  function updateBulk() {
+    const n = state.selected.size;
+    const bar = document.getElementById("bulkbar");
+    document.getElementById("bulkCount").textContent = n;
+    const btn1 = document.getElementById("bulkSendPrimary");
+    const btn2 = document.getElementById("bulkSendSecondary");
+    if (n === 0) { bar.classList.remove("show"); return; }
+    bar.classList.add("show");
+
+    let eligibleSecondary = 0;
+    state.selected.forEach(id => {
+      const u = UNIS.find(x => x.id === id); if (!u) return;
+      if (statusOf(u) === 'primary') eligibleSecondary++;
+    });
+
+    const hints = [`${n}개 대학 선택`];
+    if (!TEMPLATES.primary)   hints.push("1차 템플릿 미등록");
+    if (!TEMPLATES.secondary) hints.push("2차 템플릿 미등록");
+    if (eligibleSecondary)    hints.push(`2차 대상 ${eligibleSecondary}건`);
+    document.getElementById("bulkText").textContent = hints.join(" · ");
+
+    if (!TEMPLATES.primary) btn1.setAttribute("disabled","disabled"); else btn1.removeAttribute("disabled");
+    if (!TEMPLATES.secondary || eligibleSecondary === 0) btn2.setAttribute("disabled","disabled"); else btn2.removeAttribute("disabled");
+  }
+
+  // ===== Events: table =====
+  body.addEventListener("click", (e) => {
+    const row = e.target.closest("tr[data-id]");
+    if (!row) return;
+    const id = row.dataset.id;
+    if (state.selected.has(id)) state.selected.delete(id);
+    else state.selected.add(id);
+    renderTable();
+    updateBulk();
+  });
+
+  document.getElementById("cbAll").addEventListener("click", () => {
+    const visible = [...body.querySelectorAll("tr[data-id]")].map(r => r.dataset.id);
+    const allSelected = visible.length > 0 && visible.every(id => state.selected.has(id));
+    if (allSelected) visible.forEach(id => state.selected.delete(id));
+    else visible.forEach(id => state.selected.add(id));
+    renderTable();
+    updateBulk();
+  });
+
+  document.getElementById("statusSeg").addEventListener("click", (e) => {
+    const btn = e.target.closest("button[data-status]");
+    if (!btn) return;
+    document.querySelectorAll("#statusSeg button").forEach(b => b.classList.remove("on"));
+    btn.classList.add("on");
+    state.status = btn.dataset.status;
+    renderTable();
+  });
+
+  document.getElementById("search").addEventListener("input", (e) => {
+    state.search = e.target.value;
+    renderTable();
+  });
+
+  // ===== Tier filter renderer (auto-derived from data) =====
+  function renderTierFilters() {
+    const wrap = document.getElementById("tierLegend");
+    wrap.innerHTML = "";
+    const tiers = derivedTiers();
+    const rows = [
+      { tier: "ALL", count: UNIS.length, color: null },
+      ...tiers.map(t => ({ tier: t, count: UNIS.filter(u => (u.tiers||[]).includes(t)).length, color: tierColor(t) }))
+    ];
+    if (tiers.length === 0 && !state.loading && !state.error) {
+      wrap.innerHTML = `<div class="tier-hint" style="margin-top:0">등급 데이터 없음</div>`;
+      return;
+    }
+    rows.forEach(r => {
+      const el = document.createElement("div");
+      el.className = "tier-row" + (state.activeTier === r.tier ? " active" : "");
+      el.dataset.tier = r.tier;
+      const tag = r.tier === "ALL"
+        ? `<span class="tier-tag all sm">전체</span>`
+        : `<span class="tier-tag sm" style="background:${r.color}">${escapeHtml(r.tier)}</span>`;
+      el.innerHTML = `${tag}<div class="name"></div><div class="count">${r.count}</div>`;
+      el.addEventListener("click", () => {
+        state.activeTier = r.tier;
+        renderTierFilters();
+        renderTable();
+      });
+      wrap.appendChild(el);
+    });
+  }
+
+  // ===== Global templates (1차 / 2차, 모든 대학 공통) =====
+  function renderTemplateCards() {
+    ["primary", "secondary"].forEach(phase => {
+      const card = document.querySelector(`.tmpl-card[data-phase="${phase}"]`);
+      if (!card) return;
+      const zone = card.querySelector(`[data-zone="${phase}"]`);
+      const info = card.querySelector(`[data-info="${phase}"]`);
+      const tag = card.querySelector(`[data-tag="${phase}"]`);
+      const prompt = card.querySelector(`[data-prompt="${phase}"]`);
+      const viewBtn = card.querySelector(`button[data-act="view"][data-phase="${phase}"]`);
+      const clearBtn = card.querySelector(`button[data-act="clear"][data-phase="${phase}"]`);
+
+      const t = TEMPLATES[phase];
+      if (t) {
+        zone.classList.add("has-file");
+        prompt.textContent = "업로드 완료";
+        info.style.display = "block";
+        info.innerHTML = `${escapeHtml(t.name)}<span class="sz">${(t.size/1024).toFixed(1)} KB</span>`;
+        tag.textContent = "등록됨";
+        tag.classList.add("loaded");
+        viewBtn.disabled = false;
+        clearBtn.disabled = false;
+      } else {
+        zone.classList.remove("has-file");
+        prompt.textContent = "파일을 드래그하거나 클릭하여 업로드";
+        info.style.display = "none";
+        tag.textContent = "미등록";
+        tag.classList.remove("loaded");
+        viewBtn.disabled = true;
+        clearBtn.disabled = true;
+      }
+    });
+    // tab badge "1/2" etc.
+    const loaded = (TEMPLATES.primary ? 1 : 0) + (TEMPLATES.secondary ? 1 : 0);
+    const badge = document.getElementById("tmplBadge");
+    badge.textContent = `${loaded}/2`;
+    badge.classList.toggle("warn", loaded < 2);
+  }
+
+  function loadTemplateFile(phase, file) {
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = () => {
+      TEMPLATES[phase] = { name: file.name, content: reader.result, size: file.size };
+      renderTemplateCards();
+      updateBulk();
+      toast(`${phase === "primary" ? "1차" : "2차"} 템플릿 업로드 · ${file.name}`);
+    };
+    reader.readAsText(file);
+  }
+
+  // wire each card
+  ["primary", "secondary"].forEach(phase => {
+    const card = document.querySelector(`.tmpl-card[data-phase="${phase}"]`);
+    if (!card) return;
+    const zone = card.querySelector(`[data-zone="${phase}"]`);
+    const input = card.querySelector(`input[data-input="${phase}"]`);
+    const viewBtn = card.querySelector(`button[data-act="view"][data-phase="${phase}"]`);
+    const clearBtn = card.querySelector(`button[data-act="clear"][data-phase="${phase}"]`);
+
+    input.addEventListener("change", (e) => {
+      loadTemplateFile(phase, e.target.files[0]);
+      e.target.value = "";
+    });
+    zone.addEventListener("dragover", (e) => { e.preventDefault(); zone.classList.add("drag-over"); });
+    zone.addEventListener("dragleave", () => zone.classList.remove("drag-over"));
+    zone.addEventListener("drop", (e) => {
+      e.preventDefault();
+      zone.classList.remove("drag-over");
+      const f = e.dataTransfer.files[0];
+      if (f) loadTemplateFile(phase, f);
+    });
+    viewBtn.addEventListener("click", () => {
+      const t = TEMPLATES[phase]; if (!t) return;
+      const w = window.open("", "_blank");
+      const isHtml = /\.html?$/i.test(t.name);
+      w.document.write(isHtml ? t.content : `<pre style="font-family:ui-monospace,monospace;padding:24px;white-space:pre-wrap">${t.content.replace(/[<>&]/g, c => ({'<':'&lt;','>':'&gt;','&':'&amp;'}[c]))}</pre>`);
+      w.document.title = `[${phase === "primary" ? "1차" : "2차"}] ${t.name}`;
+    });
+    clearBtn.addEventListener("click", () => {
+      if (!confirm(`${phase === "primary" ? "1차" : "2차"} 템플릿을 제거하시겠습니까?`)) return;
+      TEMPLATES[phase] = null;
+      renderTemplateCards();
+      updateBulk();
+      toast(`${phase === "primary" ? "1차" : "2차"} 템플릿 제거됨`);
+    });
+  });
+
+  // ===== Tab switching =====
+  document.querySelectorAll(".tab").forEach(tab => {
+    tab.addEventListener("click", () => {
+      const target = tab.dataset.tab;
+      document.querySelectorAll(".tab").forEach(t => t.classList.toggle("on", t === tab));
+      document.querySelectorAll(".tab-panel").forEach(p => p.classList.toggle("on", p.dataset.tabPanel === target));
+    });
+  });
+
+  // ===== ENV switching =====
+  async function loadEnvConfig() {
+    try {
+      const r = await fetch("/api/envs");
+      const data = await r.json();
+      ENV_CONFIG = { test: false, prod: false };
+      (data.envs || []).forEach(e => { ENV_CONFIG[e.env] = e.configured; });
+    } catch {}
+    document.querySelectorAll(".env-btn").forEach(b => {
+      const env = b.dataset.env;
+      if (!ENV_CONFIG[env]) b.setAttribute("disabled", "disabled");
+      else b.removeAttribute("disabled");
+    });
+    // 만약 저장된 ENV가 미설정이면 fallback
+    if (!ENV_CONFIG[ENV]) {
+      ENV = ENV_CONFIG.test ? "test" : (ENV_CONFIG.prod ? "prod" : "test");
+      localStorage.setItem(ENV_KEY, ENV);
+      applyEnvTheme();
+    }
+  }
+  function switchEnv(newEnv) {
+    if (newEnv === ENV) return;
+    if (!ENV_CONFIG[newEnv]) {
+      toast(`${newEnv.toUpperCase()} 환경이 설정되지 않았습니다`);
+      return;
+    }
+    if (newEnv === "prod") {
+      const ok = confirm("⚠ PRODUCTION 환경으로 전환합니다.\n실제 발송이 이루어지는 환경입니다. 계속하시겠습니까?");
+      if (!ok) return;
+    }
+    ENV = newEnv;
+    localStorage.setItem(ENV_KEY, ENV);
+    applyEnvTheme();
+    // 환경 전환 시 선택/상태 초기화
+    state.selected.clear();
+    UNIS = [];
+    Object.keys(LOCAL_STATUS).forEach(k => delete LOCAL_STATUS[k]);
+    renderTable();
+    renderTierFilters();
+    updateBulk();
+    fetchDbInfo();
+    fetchUniversities();
+    toast(`${newEnv.toUpperCase()} 환경으로 전환`);
+  }
+  document.querySelectorAll(".env-btn").forEach(b => {
+    b.addEventListener("click", () => switchEnv(b.dataset.env));
+  });
+
+  // ===== Send =====
+  async function sendPhase(phase, ids) {
+    if (!TEMPLATES[phase]) {
+      toast(`${phase === "primary" ? "1차" : "2차"} 템플릿이 등록되지 않았습니다`);
+      return;
+    }
+    const allTargets = ids.map(id => UNIS.find(x => x.id === id)).filter(Boolean);
+    // 2차는 1차 발송 후 회신 미접수만 자동 필터
+    const targets = phase === "secondary"
+      ? allTargets.filter(u => statusOf(u) === 'primary')
+      : allTargets;
+    if (targets.length === 0) {
+      toast(phase === "secondary"
+        ? "2차 발송 대상 없음 (1차 발송 후 회신 미접수만 대상)"
+        : "발송 대상 없음");
+      return;
+    }
+    try {
+      const r = await fetch("/api/send", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ phase, env: ENV, ids: targets.map(u => u.id) })
+      });
+      if (!r.ok) throw new Error(`HTTP ${r.status}`);
+      targets.forEach(u => { LOCAL_STATUS[u.id] = phase; });
+      state.selected.clear();
+      renderTable();
+      updateBulk();
+      toast(`${phase === "primary" ? "1차" : "2차"} 발송 완료 · ${targets.length}건`);
+    } catch (err) {
+      toast(`발송 실패 · ${err.message}`);
+    }
+  }
+  document.getElementById("bulkClear").addEventListener("click", () => {
+    state.selected.clear();
+    renderTable();
+    updateBulk();
+  });
+  document.getElementById("bulkSendPrimary").addEventListener("click", () => sendPhase("primary", [...state.selected]));
+  document.getElementById("bulkSendSecondary").addEventListener("click", () => sendPhase("secondary", [...state.selected]));
+
+  // ===== Sync =====
+  document.getElementById("syncBtn").addEventListener("click", async (e) => {
+    const btn = e.currentTarget;
+    btn.textContent = "↻ Syncing…";
+    btn.disabled = true;
+    await Promise.all([fetchDbInfo(), fetchUniversities()]);
+    btn.textContent = "↻ Sync";
+    btn.disabled = false;
+  });
+
+  function toast(msg) {
+    const t = document.getElementById("toast");
+    t.textContent = msg;
+    t.classList.add("show");
+    clearTimeout(t._h);
+    t._h = setTimeout(() => t.classList.remove("show"), 2400);
+  }
+
+  // ===== Init =====
+  applyEnvTheme();
+  renderTierFilters();
+  renderTemplateCards();
+  renderTable();    // shows loading state
+  updateBulk();
+  (async () => {
+    await loadEnvConfig();
+    fetchDbInfo();
+    fetchUniversities();
+  })();
+</script>
+</body>
+</html>

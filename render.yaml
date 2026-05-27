@@ -1,0 +1,21 @@
+services:
+  - type: web
+    name: skky-automation
+    runtime: node
+    region: singapore
+    plan: free
+    buildCommand: npm install
+    startCommand: npm start
+    envVars:
+      - key: NOTION_TOKEN
+        sync: false
+      - key: NOTION_DATABASE_TEST
+        sync: false
+      - key: NOTION_DATABASE_PROD
+        sync: false
+      - key: NOTION_PROP_CODE
+        value: 대학코드
+      - key: NOTION_PROP_NAME
+        value: 대학명
+      - key: NOTION_PROP_TIER
+        value: 신청등급
