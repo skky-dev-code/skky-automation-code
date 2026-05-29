@@ -2096,7 +2096,7 @@
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           id, phase: PREVIEW_PHASE,
-          template: TEMPLATES[PREVIEW_PHASE].content,
+          template: TEMPLATES[PREVIEW_PHASE],   // {name, content} — name으로 평문/HTML 판별
           recipientCol: RECIPIENT_COL,
         }),
       });
@@ -2173,7 +2173,7 @@
         body: JSON.stringify({
           phase, env: ENV,
           ids: targets.map(u => u.id),
-          template: TEMPLATES[phase].content,
+          template: TEMPLATES[phase],   // {name, content} — name으로 평문/HTML 판별
           recipientCol: RECIPIENT_COL,
         })
       });

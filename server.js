@@ -377,9 +377,22 @@ function uniIdsByRaw(rawIds, env) {
   return rawIds; // we don't keep a server cache; clients send dashless IDs back via /api/sync-inbox response
 }
 
+// 파일 확장자로 템플릿 타입 결정. .html/.htm/.eml 이면 HTML 그대로 사용,
+// 그 외(.txt/.md/이름없음)는 HTML 이스케이프 + \n → <br> 변환해 줄바꿈을 보존.
+function isHtmlTemplate(name) { return /\.(html?|eml)$/i.test(String(name || "")); }
+function htmlEscape(s) {
+  return String(s).replace(/[&<>]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;" }[c]));
+}
+function nl2br(s) { return String(s).replace(/\r?\n/g, "<br>"); }
+
 // 한 Notion 페이지 + 템플릿 → 실제 발송될 메시지(수신자/제목/본문)를 조립.
 // /api/send 와 /api/preview 가 동일하게 사용 → 미리보기 = 실제 발송 결과.
+// template 은 { name, content } 객체 또는 (구버전 호환) 문자열.
 function buildMessage(page, { template, phase, col }) {
+  const tpl = (template && typeof template === "object")
+    ? template
+    : { name: "", content: String(template || "") };
+
   const props = page.properties;
   const vars = {};
   Object.keys(props).forEach(k => { vars[k] = readProp(props[k]); });
@@ -390,12 +403,22 @@ function buildMessage(page, { template, phase, col }) {
   const to = String((Array.isArray(raw) ? raw[0] : raw) || "").trim();
   const valid = !!to && /.+@.+\..+/.test(to);
 
+  const rendered = renderTemplate(tpl.content, vars);
+  let html, text = null;
+  if (isHtmlTemplate(tpl.name)) {
+    html = rendered;
+  } else {
+    // 평문 템플릿: 원본은 text 파트로, html은 줄바꿈을 <br>로 변환해 동봉
+    text = rendered;
+    html = nl2br(htmlEscape(rendered));
+  }
+
   return {
     to,
     valid,
     from: `"${MAIL.fromName}" <${MAIL.user}>`,
     subject: renderTemplate(MAIL.subjects[phase], vars),
-    html: renderTemplate(template, vars),
+    html, text,
     name: vars["대학명"],
   };
 }
@@ -407,7 +430,9 @@ app.post("/api/preview", async (req, res) => {
 
   if (!["primary", "secondary"].includes(phase)) return res.status(400).json({ error: "invalid phase" });
   if (!id) return res.status(400).json({ error: "id 없음" });
-  if (!template) return res.status(400).json({ error: "템플릿 없음" });
+  if (!template || (typeof template === "object" ? !template.content : !String(template).trim())) {
+    return res.status(400).json({ error: "템플릿 없음" });
+  }
 
   try {
     const page = await notion.pages.retrieve({ page_id: id });
@@ -427,7 +452,9 @@ app.post("/api/send", async (req, res) => {
 
   if (!["primary", "secondary"].includes(phase)) return res.status(400).json({ error: "invalid phase" });
   if (!ids.length) return res.status(400).json({ error: "ids 비어있음" });
-  if (!template) return res.status(400).json({ error: "템플릿 없음" });
+  if (!template || (typeof template === "object" ? !template.content : !String(template).trim())) {
+    return res.status(400).json({ error: "템플릿 없음" });
+  }
   if (!MAIL.user || !MAIL.pass) return res.status(400).json({ error: "SMTP 인증 정보 미설정 (NAVER_USER / NAVER_PASS)" });
 
   const sent = [];
@@ -450,6 +477,7 @@ app.post("/api/send", async (req, res) => {
         to: msg.to,
         subject: msg.subject,
         html: msg.html,
+        text: msg.text || undefined,
         messageId,
       });
       sent.push({ id, to: msg.to, messageId: info.messageId || messageId, name: msg.name });
