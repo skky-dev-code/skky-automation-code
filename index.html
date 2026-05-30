@@ -644,21 +644,21 @@
   .seg button:last-child { border-right: none; }
   .seg button.on { background: var(--ink); color: var(--paper); }
 
-  /* ===== Status progress (funnel) — 단계별 흐름과 카운트, 클릭 시 필터 ===== */
+  /* ===== Status progress — 단계별 흐름과 카운트. 클릭 시 필터, 화살표 없이 셀로 묶음 ===== */
   .progress {
     display: flex;
     align-items: stretch;
-    gap: 0;
     flex: 1 1 auto;
     min-width: 0;
     border: 1px solid var(--ink);
     background: var(--paper);
-    overflow-x: auto;   /* 단계가 많아 폭을 넘으면 가로 스크롤 */
+    overflow-x: auto;
     overflow-y: hidden;
   }
+  /* 단일 셀 — 전체 / 미발송 */
   .progress .stage {
-    flex: 1 0 90px;
-    min-width: 90px;
+    flex: 1 1 0;
+    min-width: 76px;
     display: flex;
     flex-direction: column;
     align-items: center;
@@ -667,33 +667,21 @@
     padding: 6px 8px;
     background: transparent;
     border: none;
-    border-right: 1px solid var(--rule);
+    border-right: 1px solid var(--ink);
     cursor: pointer;
     transition: background .15s, color .15s;
     color: var(--ink-2);
   }
-  .progress .stage:last-child { border-right: none; }
+  .progress > .stage:last-child,
+  .progress > .stage-group:last-child { border-right: none; }
   .progress .stage:hover { background: var(--paper-2); }
-  .progress .stage.on,
-  .progress .stage.all.on,
-  .progress .stage.draft.on,
-  .progress .stage.sent.on {
-    background: var(--ink);
-    color: var(--paper);
-  }
+  .progress .stage.on { background: var(--ink); color: var(--paper); }
   .progress .stage.on .ct,
   .progress .stage.on .nm { color: var(--paper); }
-  /* 회신 단계 — 평소엔 ok 색상, 선택 시엔 같은 색을 배경으로 */
-  .progress .stage.replied { color: var(--ok); }
-  .progress .stage.replied .ct { color: var(--ok); }
-  .progress .stage.replied.on { background: var(--ok); color: var(--paper); }
-  .progress .stage.replied.on .ct,
-  .progress .stage.replied.on .nm { color: var(--paper); }
   .progress .stage .nm {
     font-family: var(--mono);
     font-size: 10px;
-    letter-spacing: .12em;
-    text-transform: none;
+    letter-spacing: .08em;
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
@@ -709,17 +697,38 @@
   }
   .progress .stage.all { background: var(--paper-2); }
   .progress .stage.all .nm { font-weight: 700; letter-spacing: .18em; text-transform: uppercase; }
-  /* 진행 방향 표시 화살표 */
-  .progress .arrow {
+  .progress .stage.all.on { background: var(--ink); color: var(--paper); }
+
+  /* 단계 묶음(phase) — 메인 셀 + 옆에 작은 회신 셀 */
+  .progress .stage-group {
+    display: flex;
+    flex: 1 1 0;
+    min-width: 0;
+    border-right: 1px solid var(--ink);
+  }
+  .progress .stage-group .stage {
+    flex: 1 1 auto;
+    min-width: 64px;
+    border-right: 1px dashed var(--rule); /* 회신 셀과의 부드러운 구분선 */
+  }
+  .progress .stage-reply {
+    flex: 0 0 auto;
+    padding: 4px 8px;
+    background: transparent;
+    border: none;
+    cursor: pointer;
     display: flex;
     align-items: center;
-    padding: 0 2px;
-    font-family: var(--display);
-    font-style: italic;
-    color: var(--ink-mute);
-    font-size: 16px;
-    user-select: none;
+    gap: 3px;
+    font-family: var(--mono);
+    font-size: 10.5px;
+    color: var(--ok);
+    transition: background .15s, color .15s;
   }
+  .progress .stage-reply:hover { background: rgba(47,111,63,.08); }
+  .progress .stage-reply.on { background: var(--ok); color: var(--paper); }
+  .progress .stage-reply .ra { font-style: normal; opacity: .8; }
+  .progress .stage-reply .rct { font-weight: 700; }
 
   .table-scroll {
     flex: 1;
@@ -1184,10 +1193,12 @@
     .table-tools { padding: 10px 12px; flex-wrap: wrap; gap: 8px; }
     .table-tools .tool-group { width: 100%; }
     .progress { width: 100%; -webkit-overflow-scrolling: touch; }
-    .progress .stage { flex: 0 0 78px; min-width: 78px; padding: 6px 4px; }
+    .progress .stage { min-width: 64px; padding: 5px 4px; }
     .progress .stage .nm { font-size: 9px; letter-spacing: .02em; }
     .progress .stage .ct { font-size: 14px; }
-    .progress .arrow { padding: 0 1px; font-size: 12px; }
+    .progress .stage-group { min-width: 0; }
+    .progress .stage-group .stage { min-width: 56px; }
+    .progress .stage-reply { padding: 4px 5px; font-size: 9.5px; }
 
     /* 테이블 — no/대학코드/신청등급 컬럼 숨김, 패딩 축소
        대학명/수신자/상태 만 남김 + 가로 스크롤로 안전망 */
@@ -1925,12 +1936,11 @@
     renderStatusProgress();   // 상단 진행바 카운트 + 활성 단계
   }
 
-  // 상단 진행바 — 단계 + 해당 단계 회신 카운트. 클릭 시 필터, 활성 단계 재선택 시 ALL.
-  // 흐름: 전체 → 미발송 → 1st_comm → ↩1st_comm → 1st_follow → ↩1st_follow → ...
+  // 상단 진행바 — 단계당 한 셀(메인 카운트) + 그 옆 작은 ↩셀(해당 단계 회신).
+  // 흐름: [전체] [미발송] [1st_comm ↩] [1st_follow ↩] [2nd_comm ↩] [2nd_follow ↩]
   function renderStatusProgress() {
     const wrap = document.getElementById("statusProgress");
     if (!wrap) return;
-    // 모든 가능한 상태값에 대해 카운트 0 초기화
     const counts = { ALL: UNIS.length, draft: 0, replied: 0 };  // 'replied' 는 구버전 호환
     PHASES.forEach(p => { counts[p.key] = 0; counts[`${p.key}_replied`] = 0; });
     UNIS.forEach(u => {
@@ -1939,17 +1949,24 @@
     });
     const active = state.status;
     const parts = [];
-    const push = (key, label, kind) => {
-      if (parts.length) parts.push(`<span class="arrow">›</span>`);
-      parts.push(`<button class="stage ${kind} ${active === key ? 'on' : ''}" data-status="${key}">
-        <span class="nm">${escapeHtml(label)}</span><span class="ct">${counts[key]}</span>
-      </button>`);
-    };
-    push('ALL', '전체', 'all');
-    push('draft', '미발송', 'draft');
+    // 전체, 미발송 — 단일 셀
+    parts.push(`<button class="stage all ${active === 'ALL' ? 'on' : ''}" data-status="ALL">
+      <span class="nm">전체</span><span class="ct">${counts.ALL}</span>
+    </button>`);
+    parts.push(`<button class="stage ${active === 'draft' ? 'on' : ''}" data-status="draft">
+      <span class="nm">미발송</span><span class="ct">${counts.draft}</span>
+    </button>`);
+    // 각 단계 — 묶음 셀(메인 + ↩)
     PHASES.forEach(p => {
-      push(p.key, p.label, 'sent');
-      push(`${p.key}_replied`, `↩ ${p.label}`, 'replied');
+      const rkey = `${p.key}_replied`;
+      parts.push(`<div class="stage-group">
+        <button class="stage ${active === p.key ? 'on' : ''}" data-status="${p.key}">
+          <span class="nm">${escapeHtml(p.label)}</span><span class="ct">${counts[p.key]}</span>
+        </button>
+        <button class="stage-reply ${active === rkey ? 'on' : ''}" data-status="${rkey}" title="${escapeHtml(p.label)} 회신 ${counts[rkey]}건">
+          <span class="ra">↩</span><span class="rct">${counts[rkey]}</span>
+        </button>
+      </div>`);
     });
     wrap.innerHTML = parts.join("");
   }
