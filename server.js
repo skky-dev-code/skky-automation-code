@@ -356,14 +356,28 @@ function formatVar(v) {
   return Array.isArray(v) ? v.join(", ") : String(v);
 }
 
-// 두 가지 양식 지원:
-//   {{var}}  — 공백 허용, 임의 키 (기존 호환)
-//   {var}    — 단일 중괄호. CSS 블록과 충돌 안 나도록 키는 한글/영숫자/언더스코어만.
-//              미정의 변수는 그대로 두어 CSS 등 일반 문자열은 손대지 않음.
-function renderTemplate(content, vars) {
+// 양식:
+//   {{var}}    — 공백 허용, 임의 키 (기존 호환)
+//   {var}      — 단일 중괄호. 키는 한글/영숫자/언더스코어만 (CSS 블록과 충돌 방지).
+//                미정의 변수는 그대로 두어 일반 문자열을 손대지 않음.
+//   { ... }    — 줄바꿈 포함 다줄 블록 = 조건부 영역. opts.premium[N] 이 true 인
+//                N번째 블록만 내용을 유지하고, 그렇지 않으면 전체 삭제.
+//                삭제 뒤 연속된 빈 줄은 2줄로 정리.
+function renderTemplate(content, vars, opts = {}) {
+  const premium = Array.isArray(opts.premium) ? opts.premium : [];
   let s = String(content || "");
+  // 1) 단일 중괄호 변수
   s = s.replace(/\{([가-힣A-Za-z0-9_]+)\}/g, (m, key) => (key in vars ? formatVar(vars[key]) : m));
+  // 2) 이중 중괄호 변수
   s = s.replace(/\{\{\s*([^}]+?)\s*\}\}/g, (_, key) => formatVar(vars[key.trim()]));
+  // 3) 다줄 조건부 블록 — premium[i] 가 true 일 때만 내용 유지
+  let i = 0;
+  s = s.replace(/\{([^{}]*?\n[^{}]*?)\}/g, (_, inner) => {
+    const keep = !!premium[i++];
+    return keep ? inner : "";
+  });
+  // 4) 삭제로 생긴 과도한 빈 줄 정리
+  s = s.replace(/\n{3,}/g, "\n\n");
   return s;
 }
 
@@ -426,16 +440,31 @@ function buildMessage(page, { template, phase, col }) {
   vars["_url"] = page.url;
 
   // 별칭 + 변환된 변수
-  //  · {대학이름} → 노션 대학명 컬럼(PROP.name)
-  //  · {신청등급} → 코드를 "프리미엄/베이직"으로 디코딩
+  //  · {대학이름}            → 노션 대학명 컬럼(PROP.name)
+  //  · {신청등급}            → 모든 등급을 "프리미엄/베이직"으로 디코딩해 , 로 연결 (기존 호환)
+  //  · {신청등급1}/{신청등급2} → 1·2번째 등급을 각각 디코딩
+  //  · 조건부 블록은 premium[0]=1차 등급, premium[1]=2차 등급의 P 여부로 판정
   if (PROP.name && vars[PROP.name] != null) vars["대학이름"] = vars[PROP.name];
-  if (PROP.tier && vars[PROP.tier] != null) vars["신청등급"] = decodeTierList(vars[PROP.tier]);
+
+  const rawTiers = PROP.tier && vars[PROP.tier] != null
+    ? (Array.isArray(vars[PROP.tier]) ? vars[PROP.tier] : [vars[PROP.tier]])
+    : [];
+  const decoded = rawTiers.map(decodeTier);
+  const premium = rawTiers.map(t => {
+    const m = String(t).match(/_([A-Za-z])/);
+    return !!m && m[1].toUpperCase() === "P";
+  });
+  if (rawTiers.length) {
+    vars["신청등급"]  = decoded.join(", ");
+    vars["신청등급1"] = decoded[0] || "";
+    vars["신청등급2"] = decoded[1] || "";
+  }
 
   const raw = vars[col];
   const to = String((Array.isArray(raw) ? raw[0] : raw) || "").trim();
   const valid = !!to && /.+@.+\..+/.test(to);
 
-  const rendered = renderTemplate(tpl.content, vars);
+  const rendered = renderTemplate(tpl.content, vars, { premium });
   let html, text = null;
   if (isHtmlTemplate(tpl.name)) {
     html = rendered;
@@ -449,7 +478,7 @@ function buildMessage(page, { template, phase, col }) {
     to,
     valid,
     from: `"${MAIL.fromName}" <${MAIL.user}>`,
-    subject: renderTemplate(MAIL.subjects[phase], vars),
+    subject: renderTemplate(MAIL.subjects[phase], vars, { premium }),
     html, text,
     name: vars["대학명"],
   };
