@@ -1055,6 +1055,118 @@
     .toolbar .center { justify-self: start; flex-wrap: wrap; }
   }
 
+  /* ===== 모바일 (≤ 640px) ===== */
+  @media (max-width: 640px) {
+    /* 페이지 기본 — 가로 스크롤 방지, 패딩 축소 */
+    html, body { overflow-x: hidden; }
+    .frame { padding: 14px 14px 140px; }
+    .tabbar { padding: 12px 14px 0; }
+
+    /* 툴바 — 세로 스택, 작게 */
+    .toolbar { padding: 10px 14px; gap: 8px; }
+    .toolbar .center-zone { justify-self: start; width: 100%; flex-wrap: wrap; gap: 8px; }
+    .toolbar .right { width: 100%; flex-direction: column; align-items: stretch; gap: 8px; }
+    .brand .name { font-size: 14px; }
+    .mark { width: 26px; height: 26px; font-size: 15px; }
+
+    /* DB 정보 박스 — 전체 폭 */
+    .toolbar .db-info { max-width: none; width: 100%; padding: 6px 10px; gap: 8px; flex-wrap: wrap; }
+    .toolbar .db-info .db-title { max-width: 100%; font-size: 14px; }
+
+    /* 환경 스위치, 동기화 버튼 */
+    .env-switch { width: 100%; }
+    .env-btn { flex: 1; padding: 8px 8px; justify-content: center; font-size: 10px; letter-spacing: .12em; }
+    .sync-btn { flex: 0 0 auto; padding: 8px 12px; font-size: 10px; }
+
+    /* 연결 상태 칩 — 전체 폭, 두 줄 자동 줄바꿈 */
+    .status-stack, .action-stack { width: 100%; gap: 6px; }
+    .conn-chip { min-width: 0; width: 100%; padding: 6px 10px; font-size: 10px; }
+
+    /* 탭바 */
+    .tabs { display: flex; width: 100%; }
+    .tab { flex: 1; justify-content: center; padding: 8px 10px 9px; font-size: 14px; gap: 6px; }
+    .tab.on { padding-top: 10px; }
+    .tab-badge { font-size: 9px; padding: 2px 5px; }
+
+    /* PROD 리본은 모바일에선 가독성 해침 → 숨김 (상단 컬러 보더로도 PROD 인지 가능) */
+    body.env-prod::after { display: none; }
+
+    /* 패널 헤더 — 살짝 축소 */
+    .panel-head { padding: 10px 12px; }
+    .filters .row { padding: 12px 12px; gap: 8px; }
+
+    /* 표 도구 영역 (status 세그먼트) — 세로 스택 */
+    .table-tools { padding: 10px 12px; flex-wrap: wrap; gap: 8px; }
+    .table-tools .tool-group { width: 100%; }
+    .seg { display: flex; width: 100%; }
+    .seg button { flex: 1; padding: 8px 6px; font-size: 10px; letter-spacing: .08em; }
+
+    /* 테이블 — no/대학코드/신청등급 컬럼 숨김, 패딩 축소
+       대학명/수신자/상태 만 남김 + 가로 스크롤로 안전망 */
+    .table-scroll { max-height: 56vh; overflow-x: auto; }
+    table { font-size: 12.5px; }
+    thead th, tbody td { padding: 10px 8px; }
+    /* 컬럼 순서: 1=checkbox 2=no 3=대학코드 4=대학명 5=수신자이메일 6=신청등급 7=Status */
+    thead th:nth-child(2), tbody td:nth-child(2),
+    thead th:nth-child(3), tbody td:nth-child(3),
+    thead th:nth-child(6), tbody td:nth-child(6) { display: none; }
+    thead th:nth-child(4) { width: auto; }
+    thead th:nth-child(5) { width: 42%; }
+    .uni .ko { font-size: 13.5px; }
+    .email-cell { font-size: 10.5px; }
+    .status { font-size: 9.5px; letter-spacing: .1em; }
+
+    /* 일괄 작업 바 — 화면 전체 폭 하단 고정, 액션 줄바꿈 허용 */
+    .bulkbar {
+      min-width: 0;
+      left: 0; right: 0; bottom: 0;
+      transform: translateY(140%);
+      width: 100%;
+      grid-template-columns: auto 1fr;
+      grid-template-areas: "count info" "actions actions";
+      gap: 10px 14px;
+      padding: 12px 14px;
+    }
+    .bulkbar.show { transform: translateY(0); }
+    .bulkbar .count-pill { grid-area: count; width: 38px; height: 38px; font-size: 18px; }
+    .bulkbar .info { grid-area: info; }
+    .bulkbar .info .l1 { font-size: 12.5px; line-height: 1.35; }
+    .bulkbar .actions { grid-area: actions; flex-wrap: wrap; }
+    .bulkbar .actions .btn { flex: 1; padding: 10px 8px; font-size: 10px; letter-spacing: .12em; }
+
+    /* 토스트 — 화면 폭에 맞게 */
+    .toast { top: auto; bottom: 12px; right: 12px; left: 12px; padding: 10px 12px; font-size: 10.5px; }
+
+    /* 미리보기 모달 — 거의 전체 화면 */
+    .modal-back { padding: 0; }
+    .modal { width: 100%; max-height: 100vh; height: 100vh; }
+    .modal-head { padding: 12px 14px; }
+    .modal-title { font-size: 13px; gap: 6px; }
+    .modal-bar { padding: 10px 14px; flex-wrap: wrap; }
+    .modal-bar select { font-size: 12px; padding: 8px; }
+    .modal-body { padding: 12px 14px; }
+    .env-row { font-size: 11px; }
+    .env-k { flex: 0 0 64px; font-size: 9px; padding: 6px 8px; }
+    .env-v { padding: 6px 8px; }
+    .preview-frame { height: 38vh; }
+    .modal-foot { padding: 10px 14px; flex-wrap: wrap; gap: 8px; }
+    .modal-foot .btn { flex: 1; padding: 10px 10px; font-size: 11px; }
+    .foot-info { width: 100%; font-size: 10.5px; }
+
+    /* 템플릿 카드 */
+    .templates-tab { grid-template-columns: 1fr; gap: 14px; }
+    .drop-zone { padding: 28px 14px; }
+  }
+
+  /* ===== 아주 작은 화면 (≤ 380px) — 추가 보정 ===== */
+  @media (max-width: 380px) {
+    .frame { padding: 10px 10px 140px; }
+    .toolbar { padding: 8px 10px; }
+    /* 수신자 이메일 컬럼도 숨겨서 대학명 + 상태만 남김 */
+    thead th:nth-child(5), tbody td:nth-child(5) { display: none; }
+    thead th:nth-child(4) { width: auto; }
+  }
+
   .tier-hint {
     font-family: var(--mono);
     font-size: 9.5px;
