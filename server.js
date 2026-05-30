@@ -366,7 +366,13 @@ function formatVar(v) {
 function renderTemplate(content, vars, opts = {}) {
   const premium = Array.isArray(opts.premium) ? opts.premium : [];
   let s = String(content || "");
-  // 1) 단일 중괄호 변수
+  // 1a) 신청등급1/2 — 뒤따르는 " :" 까지 같이 제거 (예: "{신청등급1} : " → "프리미엄")
+  s = s.replace(/\{(신청등급[12])\}[ \t]*:?[ \t]*(?=\r?\n|$)|\{(신청등급[12])\}[ \t]*:[ \t]*/g,
+    (m, k1, k2) => {
+      const key = k1 || k2;
+      return key in vars ? formatVar(vars[key]) : m;
+    });
+  // 1b) 일반 단일 중괄호 변수
   s = s.replace(/\{([가-힣A-Za-z0-9_]+)\}/g, (m, key) => (key in vars ? formatVar(vars[key]) : m));
   // 2) 이중 중괄호 변수
   s = s.replace(/\{\{\s*([^}]+?)\s*\}\}/g, (_, key) => formatVar(vars[key.trim()]));
@@ -379,6 +385,18 @@ function renderTemplate(content, vars, opts = {}) {
   // 4) 삭제로 생긴 과도한 빈 줄 정리
   s = s.replace(/\n{3,}/g, "\n\n");
   return s;
+}
+
+// 템플릿 첫 줄이 "메일제목: ..." 또는 "메일 제목 : ..." 이면 그것을 Subject 로 추출,
+// 본문에서는 그 줄을 제거. 없으면 null + 원본 본문 반환.
+function extractInlineSubject(content) {
+  const stripped = String(content || "").replace(/^(?:\r?\n)+/, ""); // 선행 빈 줄 제거
+  const m = stripped.match(/^[ \t]*메일\s*제목\s*:[ \t]*([^\r\n]*)(?:\r?\n|$)/);
+  if (!m) return { subject: null, body: content };
+  return {
+    subject: m[1].trim(),
+    body: stripped.slice(m[0].length).replace(/^(?:\r?\n)+/, ""), // 제목 줄 + 직후 빈 줄 정리
+  };
 }
 
 // 신청등급 코드 → 한글로 디코딩. "KNSSE_P_..." → 프리미엄, "UICA_B_..." → 베이직.
@@ -464,7 +482,12 @@ function buildMessage(page, { template, phase, col }) {
   const to = String((Array.isArray(raw) ? raw[0] : raw) || "").trim();
   const valid = !!to && /.+@.+\..+/.test(to);
 
-  const rendered = renderTemplate(tpl.content, vars, { premium });
+  // 템플릿 첫 줄의 "메일제목: ..." 이 있으면 그것을 Subject 로, 본문에서는 제거.
+  // 없으면 환경변수 기반 기존 subject 사용.
+  const { subject: inlineSubject, body: bodyContent } = extractInlineSubject(tpl.content);
+  const subjectSource = inlineSubject != null ? inlineSubject : MAIL.subjects[phase];
+
+  const rendered = renderTemplate(bodyContent, vars, { premium });
   let html, text = null;
   if (isHtmlTemplate(tpl.name)) {
     html = rendered;
@@ -478,7 +501,7 @@ function buildMessage(page, { template, phase, col }) {
     to,
     valid,
     from: `"${MAIL.fromName}" <${MAIL.user}>`,
-    subject: renderTemplate(MAIL.subjects[phase], vars, { premium }),
+    subject: renderTemplate(subjectSource, vars, { premium }),
     html, text,
     name: vars["대학명"],
   };
