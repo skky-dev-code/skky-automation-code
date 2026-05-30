@@ -18,8 +18,10 @@ const MAIL = {
   pass:    process.env.NAVER_PASS || "",
   fromName: process.env.MAIL_FROM_NAME || "SKKY",
   subjects: {
-    primary:   process.env.MAIL_SUBJECT_PRIMARY   || "K-NSSE / UICA 참여 안내",
-    secondary: process.env.MAIL_SUBJECT_SECONDARY || "K-NSSE / UICA 참여 안내 (리마인드)",
+    primary:    process.env.MAIL_SUBJECT_PRIMARY    || "K-NSSE / UICA 참여 안내",
+    secondary:  process.env.MAIL_SUBJECT_SECONDARY  || "K-NSSE / UICA 참여 안내 (리마인드)",
+    tertiary:   process.env.MAIL_SUBJECT_TERTIARY   || process.env.MAIL_SUBJECT_PRIMARY   || "K-NSSE / UICA 참여 안내",
+    quaternary: process.env.MAIL_SUBJECT_QUATERNARY || process.env.MAIL_SUBJECT_SECONDARY || "K-NSSE / UICA 참여 안내 (리마인드)",
   },
   recipientCol: process.env.MAIL_RECIPIENT_COL || "담당자 이메일",
 };
@@ -136,7 +138,13 @@ app.get("/api/envs", (_req, res) => {
 });
 
 // ===== 공유 상태 저장소 (발송/회신) =====
-const VALID_STATUS = new Set(["draft", "primary", "secondary", "replied", "failed"]);
+// 발송 단계 4개. 각 단계마다 sent(`primary`)와 회신(`primary_replied`) 두 상태.
+// 향후 단계를 추가할 때는 이 배열에만 키를 더하면 서버·프론트가 같이 따라온다.
+const PHASE_KEYS = ["primary", "secondary", "tertiary", "quaternary"];
+const VALID_STATUS = new Set([
+  "draft", "failed", "replied", // "replied" 는 단계 정보 없는 구버전 호환
+  ...PHASE_KEYS.flatMap(p => [p, `${p}_replied`]),
+]);
 
 // GET /api/status?env=test|prod — 모든 사용자 공통 상태 맵
 app.get("/api/status", async (req, res) => {
@@ -166,8 +174,8 @@ app.post("/api/status", async (req, res) => {
   }
 });
 
-// ===== 공유 템플릿 저장소 (1차/2차, env별) =====
-const VALID_PHASE = new Set(["primary", "secondary"]);
+// ===== 공유 템플릿 저장소 (단계별, env별) =====
+const VALID_PHASE = new Set(PHASE_KEYS);
 const MAX_TEMPLATE_BYTES = 1_000_000; // 1MB
 
 // GET /api/templates?env= — { primary?, secondary? } 각 { name, content, size }
@@ -425,9 +433,10 @@ function makeMessageId(uniId, phase) {
 }
 function parseMessageId(mid) {
   if (!mid) return null;
-  const m = mid.match(/<([a-z0-9]+)\.(primary|secondary)\.(\d+)@([^>]+)>/i);
+  const phases = PHASE_KEYS.join("|");
+  const m = mid.match(new RegExp(`<([a-z0-9]+)\\.(${phases})\\.(\\d+)@([^>]+)>`, "i"));
   if (!m || !m[4].includes("skky-dispatch")) return null;
-  return { uniIdRaw: m[1], phase: m[2], ts: Number(m[3]) };
+  return { uniIdRaw: m[1], phase: m[2].toLowerCase(), ts: Number(m[3]) };
 }
 
 // Look up universities by their raw (dashless) ID
@@ -512,7 +521,7 @@ app.post("/api/preview", async (req, res) => {
   const { id, phase = "primary", template = "", recipientCol } = req.body || {};
   const col = (recipientCol && String(recipientCol).trim()) || MAIL.recipientCol;
 
-  if (!["primary", "secondary"].includes(phase)) return res.status(400).json({ error: "invalid phase" });
+  if (!PHASE_KEYS.includes(phase)) return res.status(400).json({ error: "invalid phase" });
   if (!id) return res.status(400).json({ error: "id 없음" });
   if (!template || (typeof template === "object" ? !template.content : !String(template).trim())) {
     return res.status(400).json({ error: "템플릿 없음" });
@@ -534,7 +543,7 @@ app.post("/api/send", async (req, res) => {
   const { ids = [], phase = "primary", env = "test", template = "", recipientCol } = req.body || {};
   const col = (recipientCol && String(recipientCol).trim()) || MAIL.recipientCol;
 
-  if (!["primary", "secondary"].includes(phase)) return res.status(400).json({ error: "invalid phase" });
+  if (!PHASE_KEYS.includes(phase)) return res.status(400).json({ error: "invalid phase" });
   if (!ids.length) return res.status(400).json({ error: "ids 비어있음" });
   if (!template || (typeof template === "object" ? !template.content : !String(template).trim())) {
     return res.status(400).json({ error: "템플릿 없음" });

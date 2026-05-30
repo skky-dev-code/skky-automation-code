@@ -653,10 +653,12 @@
     min-width: 0;
     border: 1px solid var(--ink);
     background: var(--paper);
+    overflow-x: auto;   /* 단계가 많아 폭을 넘으면 가로 스크롤 */
+    overflow-y: hidden;
   }
   .progress .stage {
-    flex: 1 1 0;
-    min-width: 0;
+    flex: 1 0 90px;
+    min-width: 90px;
     display: flex;
     flex-direction: column;
     align-items: center;
@@ -672,11 +674,21 @@
   }
   .progress .stage:last-child { border-right: none; }
   .progress .stage:hover { background: var(--paper-2); }
-  .progress .stage.on {
+  .progress .stage.on,
+  .progress .stage.all.on,
+  .progress .stage.draft.on,
+  .progress .stage.sent.on {
     background: var(--ink);
     color: var(--paper);
   }
-  .progress .stage.on .ct { color: var(--paper); }
+  .progress .stage.on .ct,
+  .progress .stage.on .nm { color: var(--paper); }
+  /* 회신 단계 — 평소엔 ok 색상, 선택 시엔 같은 색을 배경으로 */
+  .progress .stage.replied { color: var(--ok); }
+  .progress .stage.replied .ct { color: var(--ok); }
+  .progress .stage.replied.on { background: var(--ok); color: var(--paper); }
+  .progress .stage.replied.on .ct,
+  .progress .stage.replied.on .nm { color: var(--paper); }
   .progress .stage .nm {
     font-family: var(--mono);
     font-size: 10px;
@@ -822,15 +834,23 @@
     text-transform: uppercase;
   }
   .status .dot { width: 6px; height: 6px; border-radius: 50%; }
-  .status.draft     { color: var(--ink-mute); }
-  .status.draft .dot{ background: var(--ink-mute); }
-  .status.primary   { color: var(--warn); }
+  .status.draft      { color: var(--ink-mute); }
+  .status.draft .dot { background: var(--ink-mute); }
+  /* 발송 단계 — 색이 점점 진해짐 */
+  .status.primary    { color: var(--warn); }
   .status.primary .dot { background: var(--warn); }
-  .status.secondary { color: var(--vermilion); }
+  .status.secondary  { color: var(--vermilion); }
   .status.secondary .dot { background: var(--vermilion); }
-  .status.replied   { color: var(--ok); }
-  .status.replied .dot { background: var(--ok); }
-  .status.failed    { color: var(--vermilion); }
+  .status.tertiary   { color: var(--warn); }
+  .status.tertiary .dot { background: var(--warn); }
+  .status.quaternary { color: var(--vermilion); }
+  .status.quaternary .dot { background: var(--vermilion); }
+  /* 회신 단계는 모두 ok 색상 */
+  .status.replied,
+  .status[class*="_replied"]      { color: var(--ok); }
+  .status.replied .dot,
+  .status[class*="_replied"] .dot { background: var(--ok); }
+  .status.failed     { color: var(--vermilion); }
   .status.failed .dot { background: var(--vermilion); }
 
   .date { font-family: var(--mono); font-size: 11px; color: var(--ink-2); }
@@ -1163,11 +1183,11 @@
     /* 표 도구 영역 (진행바) — 세로 스택 */
     .table-tools { padding: 10px 12px; flex-wrap: wrap; gap: 8px; }
     .table-tools .tool-group { width: 100%; }
-    .progress { width: 100%; }
-    .progress .stage { padding: 6px 4px; }
-    .progress .stage .nm { font-size: 9px; letter-spacing: .04em; }
-    .progress .stage .ct { font-size: 15px; }
-    .progress .arrow { display: none; } /* 좁은 화면에선 화살표 생략 */
+    .progress { width: 100%; -webkit-overflow-scrolling: touch; }
+    .progress .stage { flex: 0 0 78px; min-width: 78px; padding: 6px 4px; }
+    .progress .stage .nm { font-size: 9px; letter-spacing: .02em; }
+    .progress .stage .ct { font-size: 14px; }
+    .progress .arrow { padding: 0 1px; font-size: 12px; }
 
     /* 테이블 — no/대학코드/신청등급 컬럼 숨김, 패딩 축소
        대학명/수신자/상태 만 남김 + 가로 스크롤로 안전망 */
@@ -1299,8 +1319,11 @@
 
   /* ===== Templates tab ===== */
   .templates-tab {
-    grid-template-columns: 1fr 1fr;
+    grid-template-columns: repeat(2, 1fr);
     gap: 22px;
+  }
+  @media (min-width: 1400px) {
+    .templates-tab { grid-template-columns: repeat(4, 1fr); }
   }
   .tmpl-card {
     background: var(--paper-2);
@@ -1480,7 +1503,7 @@
 <nav class="tabbar">
   <div class="tabs">
     <button class="tab on" data-tab="dispatch">발송</button>
-    <button class="tab" data-tab="templates">템플릿 <span class="tab-badge" id="tmplBadge">0/2</span></button>
+    <button class="tab" data-tab="templates">템플릿 <span class="tab-badge" id="tmplBadge">0/4</span></button>
   </div>
 </nav>
 
@@ -1592,6 +1615,46 @@
         <button class="danger" data-act="clear" data-phase="secondary" disabled>제거</button>
       </div>
     </div>
+
+    <div class="tmpl-card" data-phase="tertiary">
+      <div class="card-head">
+        <span class="phase-num">2nd_comm</span>
+        <span class="status-tag" data-tag="tertiary">미등록</span>
+      </div>
+      <label class="drop-zone" data-zone="tertiary">
+        <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4">
+          <path d="M12 3v12m0-12l-5 5m5-5l5 5M4 17v2a2 2 0 002 2h12a2 2 0 002-2v-2"/>
+        </svg>
+        <div class="title-d" data-prompt="tertiary">파일을 드래그하거나 클릭하여 업로드</div>
+        <div class="hint">.html · .eml · .txt · .md</div>
+        <input type="file" accept=".html,.htm,.eml,.txt,.md" data-input="tertiary" />
+      </label>
+      <div class="file-info" data-info="tertiary"></div>
+      <div class="card-actions">
+        <button data-act="view" data-phase="tertiary" disabled>미리보기</button>
+        <button class="danger" data-act="clear" data-phase="tertiary" disabled>제거</button>
+      </div>
+    </div>
+
+    <div class="tmpl-card" data-phase="quaternary">
+      <div class="card-head">
+        <span class="phase-num">2nd_follow</span>
+        <span class="status-tag" data-tag="quaternary">미등록</span>
+      </div>
+      <label class="drop-zone" data-zone="quaternary">
+        <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4">
+          <path d="M12 3v12m0-12l-5 5m5-5l5 5M4 17v2a2 2 0 002 2h12a2 2 0 002-2v-2"/>
+        </svg>
+        <div class="title-d" data-prompt="quaternary">파일을 드래그하거나 클릭하여 업로드</div>
+        <div class="hint">.html · .eml · .txt · .md</div>
+        <input type="file" accept=".html,.htm,.eml,.txt,.md" data-input="quaternary" />
+      </label>
+      <div class="file-info" data-info="quaternary"></div>
+      <div class="card-actions">
+        <button data-act="view" data-phase="quaternary" disabled>미리보기</button>
+        <button class="danger" data-act="clear" data-phase="quaternary" disabled>제거</button>
+      </div>
+    </div>
   </section>
 </div>
 
@@ -1603,8 +1666,10 @@
   </div>
   <div class="actions">
     <button class="btn" id="bulkClear">선택 해제</button>
-    <button class="btn" id="bulkSendPrimary">1st_comm 발송 →</button>
-    <button class="btn primary" id="bulkSendSecondary">1st_follow 발송 →</button>
+    <button class="btn" data-bulk-send="primary">1st_comm →</button>
+    <button class="btn" data-bulk-send="secondary">1st_follow →</button>
+    <button class="btn" data-bulk-send="tertiary">2nd_comm →</button>
+    <button class="btn primary" data-bulk-send="quaternary">2nd_follow →</button>
   </div>
 </div>
 
@@ -1649,7 +1714,7 @@
   let EMAIL_COLS = [];                                // 노션에서 감지한 이메일 컬럼들
   let RECIPIENT_COL = localStorage.getItem("dispatch.recipientCol") || ""; // 선택된 컬럼
   const LOCAL_STATUS = {};                            // id → 'draft' | 'primary' | 'secondary' | 'replied' | 'failed'
-  const TEMPLATES = { primary: null, secondary: null }; // 전역 — 모든 대학 공통
+  const TEMPLATES = { primary: null, secondary: null, tertiary: null, quaternary: null };  // 단계별 템플릿
   let SMTP_OK = false;                                // /api/mail-status SMTP verify 결과
 
   // 서버(server.js)의 송신 시 검증과 동일한 형식 체크
@@ -1665,7 +1730,7 @@
     if (!EMAIL_RE.test(email)) return { state: "no", email, reason: "이메일 형식 오류 — 발송 시 실패" };
     const blockers = [];
     if (!SMTP_OK) blockers.push("SMTP 연결 안 됨");
-    if (!TEMPLATES.primary && !TEMPLATES.secondary) blockers.push("템플릿 미등록");
+    if (!Object.values(TEMPLATES).some(Boolean)) blockers.push("템플릿 미등록");
     if (blockers.length) return { state: "wait", email, reason: blockers.join(" · ") };
     return { state: "go", email, reason: "발송 가능" };
   }
@@ -1716,8 +1781,7 @@
       const r = await fetch(`/api/templates?env=${ENV}`);
       if (!r.ok) return;
       const data = await r.json();
-      TEMPLATES.primary   = data.templates?.primary   || null;
-      TEMPLATES.secondary = data.templates?.secondary || null;
+      PHASES.forEach(p => { TEMPLATES[p.key] = data.templates?.[p.key] || null; });
       renderTemplateCards();
       updateBulk();
       renderTable();
@@ -1768,21 +1832,27 @@
   const body = document.getElementById("uniBody");
 
   function statusOf(u) { return LOCAL_STATUS[u.id] || 'draft'; }
-  // 발송 단계 라벨 — 향후 2차/3차 통신이 생기면 PHASE_LABEL/STAGES 에만 추가하면 됨
-  const PHASE_LABEL = { primary: "1st_comm", secondary: "1st_follow" };
-  function phaseLabel(p) { return PHASE_LABEL[p] || p; }
-  // 진행 단계(왼쪽→오른쪽 흐름). 표 상단 진행바와 statusLabel 의 단일 출처.
-  const STAGES = [
-    { key: 'draft',     label: '미발송' },
-    { key: 'primary',   label: '1st_comm' },
-    { key: 'secondary', label: '1st_follow' },
-    { key: 'replied',   label: '회신완료' },
+  // 발송 단계 — 단일 소스. 새 단계 추가는 이 배열에만 키/라벨을 더하면 됨
+  //  · phase key 는 내부/저장소용 (primary/secondary/tertiary/quaternary)
+  //  · 상태값: '${key}' (발송됨) / '${key}_replied' (해당 단계에 회신완료)
+  const PHASES = [
+    { key: 'primary',    label: '1st_comm'   },
+    { key: 'secondary',  label: '1st_follow' },
+    { key: 'tertiary',   label: '2nd_comm'   },
+    { key: 'quaternary', label: '2nd_follow' },
   ];
+  const PHASE_LABEL = Object.fromEntries(PHASES.map(p => [p.key, p.label]));
+  function phaseLabel(p) { return PHASE_LABEL[p] || p; }
+
   function statusLabel(s) {
-    const found = STAGES.find(st => st.key === s);
-    if (found) return found.label;
+    if (!s || s === 'draft') return '미발송';
     if (s === 'failed') return '실패';
-    return '미발송';
+    if (s === 'replied') return '회신완료'; // 단계 정보 없는 구버전 호환
+    if (s.endsWith('_replied')) {
+      const ph = s.slice(0, -('_replied'.length));
+      return `↩ ${phaseLabel(ph)}`;
+    }
+    return phaseLabel(s);
   }
   function escapeHtml(s) {
     return String(s ?? "").replace(/[&<>"']/g, c => ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[c]));
@@ -1855,26 +1925,31 @@
     renderStatusProgress();   // 상단 진행바 카운트 + 활성 단계
   }
 
-  // 상단 진행바 — 단계별 카운트 + 클릭 시 필터. 활성 단계를 한 번 더 누르면 ALL.
+  // 상단 진행바 — 단계 + 해당 단계 회신 카운트. 클릭 시 필터, 활성 단계 재선택 시 ALL.
+  // 흐름: 전체 → 미발송 → 1st_comm → ↩1st_comm → 1st_follow → ↩1st_follow → ...
   function renderStatusProgress() {
     const wrap = document.getElementById("statusProgress");
     if (!wrap) return;
-    const counts = {};
-    STAGES.forEach(s => { counts[s.key] = 0; });
+    // 모든 가능한 상태값에 대해 카운트 0 초기화
+    const counts = { ALL: UNIS.length, draft: 0, replied: 0 };  // 'replied' 는 구버전 호환
+    PHASES.forEach(p => { counts[p.key] = 0; counts[`${p.key}_replied`] = 0; });
     UNIS.forEach(u => {
       const st = statusOf(u);
       if (st in counts) counts[st]++;
     });
     const active = state.status;
     const parts = [];
-    parts.push(`<button class="stage all ${active === 'ALL' ? 'on' : ''}" data-status="ALL">
-        <span class="nm">전체</span><span class="ct">${UNIS.length}</span>
+    const push = (key, label, kind) => {
+      if (parts.length) parts.push(`<span class="arrow">›</span>`);
+      parts.push(`<button class="stage ${kind} ${active === key ? 'on' : ''}" data-status="${key}">
+        <span class="nm">${escapeHtml(label)}</span><span class="ct">${counts[key]}</span>
       </button>`);
-    STAGES.forEach((s, i) => {
-      parts.push(`<span class="arrow">›</span>`);
-      parts.push(`<button class="stage ${active === s.key ? 'on' : ''}" data-status="${s.key}">
-        <span class="nm">${s.label}</span><span class="ct">${counts[s.key]}</span>
-      </button>`);
+    };
+    push('ALL', '전체', 'all');
+    push('draft', '미발송', 'draft');
+    PHASES.forEach(p => {
+      push(p.key, p.label, 'sent');
+      push(`${p.key}_replied`, `↩ ${p.label}`, 'replied');
     });
     wrap.innerHTML = parts.join("");
   }
@@ -2005,29 +2080,45 @@
   }
 
   // ===== Bulk =====
+  // 단계 N 의 발송 대상 = 선택된 행 중 status 가 직전 단계(N-1) 그대로 인 행. 단계 1 은 전체.
+  function eligibleFor(phase) {
+    const idx = PHASES.findIndex(p => p.key === phase);
+    if (idx <= 0) return state.selected.size;
+    const prev = PHASES[idx - 1].key;
+    let c = 0;
+    state.selected.forEach(id => {
+      const u = UNIS.find(x => x.id === id);
+      if (u && statusOf(u) === prev) c++;
+    });
+    return c;
+  }
   function updateBulk() {
     const n = state.selected.size;
     const bar = document.getElementById("bulkbar");
     document.getElementById("bulkCount").textContent = n;
-    const btn1 = document.getElementById("bulkSendPrimary");
-    const btn2 = document.getElementById("bulkSendSecondary");
     if (n === 0) { bar.classList.remove("show"); return; }
     bar.classList.add("show");
 
-    let eligibleSecondary = 0;
-    state.selected.forEach(id => {
-      const u = UNIS.find(x => x.id === id); if (!u) return;
-      if (statusOf(u) === 'primary') eligibleSecondary++;
-    });
-
     const hints = [`${n}개 대학 선택`];
-    if (!TEMPLATES.primary)   hints.push(`${phaseLabel("primary")} 템플릿 미등록`);
-    if (!TEMPLATES.secondary) hints.push(`${phaseLabel("secondary")} 템플릿 미등록`);
-    if (eligibleSecondary)    hints.push(`${phaseLabel("secondary")} 대상 ${eligibleSecondary}건`);
+    PHASES.forEach((p, i) => {
+      if (!TEMPLATES[p.key]) {
+        hints.push(`${p.label} 템플릿 미등록`);
+        return;
+      }
+      if (i > 0) {
+        const elig = eligibleFor(p.key);
+        if (elig) hints.push(`${p.label} 대상 ${elig}건`);
+      }
+    });
     document.getElementById("bulkText").textContent = hints.join(" · ");
 
-    if (!TEMPLATES.primary) btn1.setAttribute("disabled","disabled"); else btn1.removeAttribute("disabled");
-    if (!TEMPLATES.secondary || eligibleSecondary === 0) btn2.setAttribute("disabled","disabled"); else btn2.removeAttribute("disabled");
+    // 각 단계 버튼 활성/비활성 — 1단계는 템플릿만 있으면 가능, 2단계 이후는 직전 단계 대상이 있어야 함
+    PHASES.forEach((p, i) => {
+      const btn = document.querySelector(`button[data-bulk-send="${p.key}"]`);
+      if (!btn) return;
+      const ok = TEMPLATES[p.key] && (i === 0 || eligibleFor(p.key) > 0);
+      if (ok) btn.removeAttribute("disabled"); else btn.setAttribute("disabled", "disabled");
+    });
   }
 
   // ===== Events: table =====
@@ -2129,7 +2220,7 @@
     applyEnvTheme();
     state.selected.clear();
     UNIS = [];
-    TEMPLATES.primary = TEMPLATES.secondary = null; // 환경별 템플릿 재로딩
+    PHASES.forEach(p => { TEMPLATES[p.key] = null; }); // 환경별 템플릿 재로딩
     renderTemplateCards();
     loadStatuses();  // 환경별로 다른 status 스토어 사용
     loadTemplates(); // 환경별 공유 템플릿
@@ -2146,7 +2237,8 @@
 
   // ===== Templates (전역 1st_comm / 1st_follow) =====
   function renderTemplateCards() {
-    ["primary", "secondary"].forEach(phase => {
+    PHASES.forEach(p => {
+      const phase = p.key;
       const card = document.querySelector(`.tmpl-card[data-phase="${phase}"]`);
       if (!card) return;
       const zone   = card.querySelector(`[data-zone="${phase}"]`);
@@ -2177,11 +2269,12 @@
         clear.disabled = true;
       }
     });
-    const loaded = (TEMPLATES.primary ? 1 : 0) + (TEMPLATES.secondary ? 1 : 0);
+    const loaded = PHASES.reduce((n, p) => n + (TEMPLATES[p.key] ? 1 : 0), 0);
+    const total = PHASES.length;
     const badge = document.getElementById("tmplBadge");
     if (badge) {
-      badge.textContent = `${loaded}/2`;
-      badge.classList.toggle("warn", loaded < 2);
+      badge.textContent = `${loaded}/${total}`;
+      badge.classList.toggle("warn", loaded < total);
     }
   }
 
@@ -2199,7 +2292,8 @@
     reader.readAsText(file);
   }
 
-  ["primary", "secondary"].forEach(phase => {
+  PHASES.forEach(p => {
+    const phase = p.key;
     const card = document.querySelector(`.tmpl-card[data-phase="${phase}"]`);
     if (!card) return;
     const zone  = card.querySelector(`[data-zone="${phase}"]`);
@@ -2348,13 +2442,13 @@
       toast(`${phaseLabel(phase)} 템플릿이 등록되지 않았습니다`);
       return;
     }
+    const idx = PHASES.findIndex(p => p.key === phase);
+    const prev = idx > 0 ? PHASES[idx - 1].key : null;
     const allTargets = ids.map(id => UNIS.find(x => x.id === id)).filter(Boolean);
-    const targets = phase === "secondary"
-      ? allTargets.filter(u => statusOf(u) === 'primary')
-      : allTargets;
+    const targets = prev ? allTargets.filter(u => statusOf(u) === prev) : allTargets;
     if (targets.length === 0) {
-      toast(phase === "secondary"
-        ? `${phaseLabel("secondary")} 발송 대상 없음 (${phaseLabel("primary")} 발송 후 회신 미접수만 대상)`
+      toast(prev
+        ? `${phaseLabel(phase)} 발송 대상 없음 (${phaseLabel(prev)} 발송 후 회신 미접수만 대상)`
         : "발송 대상 없음");
       return;
     }
@@ -2369,9 +2463,9 @@
       return;
     }
 
-    const btn1 = document.getElementById("bulkSendPrimary");
-    const btn2 = document.getElementById("bulkSendSecondary");
-    btn1.disabled = btn2.disabled = true;
+    // 발송 중에는 모든 단계 버튼 비활성화 (updateBulk 가 끝나면 다시 활성화)
+    const sendBtns = document.querySelectorAll(".bulkbar button[data-bulk-send]");
+    sendBtns.forEach(b => { b.disabled = true; });
     toast(`${label} 발송 중 · ${targets.length}건 (네이버 SMTP)`);
 
     try {
@@ -2466,9 +2560,12 @@
       replies.forEach(rep => {
         // server returns rawUniId (dashless). 매칭은 dashless 비교.
         const target = UNIS.find(u => u.id.replace(/-/g, "") === rep.rawUniId);
-        if (target && LOCAL_STATUS[target.id] !== "replied") {
-          LOCAL_STATUS[target.id] = "replied";
-          updates[target.id] = "replied";
+        if (!target) return;
+        // 회신은 메일 헤더의 phase 에 묶임 → "${phase}_replied" 로 저장해 단계까지 보존
+        const newStatus = `${rep.phase}_replied`;
+        if (LOCAL_STATUS[target.id] !== newStatus) {
+          LOCAL_STATUS[target.id] = newStatus;
+          updates[target.id] = newStatus;
           newlyReplied.push(target);
         }
       });
@@ -2494,8 +2591,12 @@
     renderTable();
     updateBulk();
   });
-  document.getElementById("bulkSendPrimary").addEventListener("click", () => prepareSend("primary", [...state.selected]));
-  document.getElementById("bulkSendSecondary").addEventListener("click", () => prepareSend("secondary", [...state.selected]));
+  // 단계 발송 버튼 — 이벤트 위임으로 단계 수가 늘어도 그대로 동작
+  document.querySelector(".bulkbar .actions").addEventListener("click", (e) => {
+    const btn = e.target.closest("button[data-bulk-send]");
+    if (!btn) return;
+    prepareSend(btn.dataset.bulkSend, [...state.selected]);
+  });
   document.getElementById("inboxBtn").addEventListener("click", syncInbox);
 
   // ===== Sync =====
