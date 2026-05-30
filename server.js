@@ -351,12 +351,38 @@ app.get("/api/mail-status", async (_req, res) => {
 });
 
 // ===== Template rendering =====
+function formatVar(v) {
+  if (v == null || v === "") return "";
+  return Array.isArray(v) ? v.join(", ") : String(v);
+}
+
+// 두 가지 양식 지원:
+//   {{var}}  — 공백 허용, 임의 키 (기존 호환)
+//   {var}    — 단일 중괄호. CSS 블록과 충돌 안 나도록 키는 한글/영숫자/언더스코어만.
+//              미정의 변수는 그대로 두어 CSS 등 일반 문자열은 손대지 않음.
 function renderTemplate(content, vars) {
-  return String(content || "").replace(/\{\{\s*([^}]+?)\s*\}\}/g, (_, key) => {
-    const v = vars[key];
-    if (v == null || v === "") return "";
-    return Array.isArray(v) ? v.join(", ") : String(v);
-  });
+  let s = String(content || "");
+  s = s.replace(/\{([가-힣A-Za-z0-9_]+)\}/g, (m, key) => (key in vars ? formatVar(vars[key]) : m));
+  s = s.replace(/\{\{\s*([^}]+?)\s*\}\}/g, (_, key) => formatVar(vars[key.trim()]));
+  return s;
+}
+
+// 신청등급 코드 → 한글로 디코딩. "KNSSE_P_..." → 프리미엄, "UICA_B_..." → 베이직.
+// 첫 언더스코어 다음 글자가 P/B인지로 판별. 매칭 안 되면 원문 유지.
+function decodeTier(raw) {
+  const s = String(raw || "").trim();
+  if (!s) return "";
+  const m = s.match(/_([A-Za-z])/);
+  if (!m) return s;
+  const ch = m[1].toUpperCase();
+  if (ch === "P") return "프리미엄";
+  if (ch === "B") return "베이직";
+  return s;
+}
+function decodeTierList(raw) {
+  if (raw == null || raw === "") return "";
+  const list = Array.isArray(raw) ? raw : [raw];
+  return list.filter(Boolean).map(decodeTier).join(", ");
 }
 
 // Custom Message-ID encoding the university ID so IMAP reply matching works statelessly
@@ -398,6 +424,12 @@ function buildMessage(page, { template, phase, col }) {
   Object.keys(props).forEach(k => { vars[k] = readProp(props[k]); });
   vars["_id"] = page.id;
   vars["_url"] = page.url;
+
+  // 별칭 + 변환된 변수
+  //  · {대학이름} → 노션 대학명 컬럼(PROP.name)
+  //  · {신청등급} → 코드를 "프리미엄/베이직"으로 디코딩
+  if (PROP.name && vars[PROP.name] != null) vars["대학이름"] = vars[PROP.name];
+  if (PROP.tier && vars[PROP.tier] != null) vars["신청등급"] = decodeTierList(vars[PROP.tier]);
 
   const raw = vars[col];
   const to = String((Array.isArray(raw) ? raw[0] : raw) || "").trim();
